@@ -6,15 +6,19 @@ from __future__ import annotations
 import pickle
 import random
 import re
-from typing import List, Optional
+from typing import Any
 
 import numpy as np
 import torch
 import torch.distributed as dist
+from transformers import PretrainedConfig
 
 
-def get_layer_id(weight_name):
-    # example weight name: model.layers.10.self_attn.qkv_proj.weight
+def get_layer_id(weight_name: str) -> int | None:
+    """Extract the layer index from a model weight name like layers.10.self_attn.
+
+    Returns None when the name does not follow the layers.<N>. convention.
+    """
     match = re.search(r"layers\.(\d+)\.", weight_name)
     if match:
         return int(match.group(1))
@@ -22,15 +26,7 @@ def get_layer_id(weight_name):
 
 
 def add_prefix(name: str, prefix: str) -> str:
-    """Add a weight path prefix to a module name.
-
-    Args:
-        name: base module name.
-        prefix: weight prefix str to added to the front of `name` concatenated with `.`.
-
-    Returns:
-        The string `prefix.name` if prefix is non-empty, otherwise just `name`.
-    """
+    """Add a weight path prefix to a module name."""
     return name if not prefix else f"{prefix}.{name}"
 
 
@@ -55,13 +51,13 @@ def avail_gpu_mem(gpu_id: int) -> float | None:
 
 
 def broadcast_pyobj(
-    data: List[Any],
+    data: list[Any],
     rank: int,
-    dist_group: Optional[torch.distributed.ProcessGroup] = None,
+    dist_group: torch.distributed.ProcessGroup | None = None,
     src: int = 0,
     force_cpu_device: bool = True,
-):
-    """Broadcast inputs from rank=0 to all other ranks with torch.dist backend."""
+) -> list[Any]:
+    """Broadcast a Python object from rank 0 to all other ranks via torch.dist."""
     device = torch.device(
         "cuda" if torch.cuda.is_available() and not force_cpu_device else "cpu"
     )
@@ -98,10 +94,23 @@ def broadcast_pyobj(
 
 
 def normalize_quantization(value: object) -> str | None:
+    """Normalize a quantization method name to lowercase."""
     if value is None:
         return None
     return str(value).lower()
 
 
-def model_config_has_moe(model_config: ModelConfig) -> bool:
+def model_config_has_moe(model_config: PretrainedConfig) -> bool:
+    """Check whether a model config describes a MoE architecture."""
     return hasattr(model_config.hf_text_config, "num_experts_per_tok")
+
+
+__all__ = [
+    "get_layer_id",
+    "add_prefix",
+    "set_random_seed",
+    "avail_gpu_mem",
+    "broadcast_pyobj",
+    "normalize_quantization",
+    "model_config_has_moe",
+]
