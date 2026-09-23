@@ -1,18 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Where every configuration value came from.
 
-The resolver records one :class:`ProvenanceEntry` per contributing patch, plus
-the baseline the patches were applied on top of. That is what makes
-``sgl-omni config explain <path>`` answerable::
-
-    stages.thinker.engine.mem_fraction_static = 0.8
-      0.87  <- model default (Qwen3OmniConfig)
-      0.70  <- yaml file (configs/omni.yaml)            [superseded]
-      0.80  <- cli flag (--thinker-mem-fraction-static) [winner]
-
-Nothing here decides anything; precedence lives in
-:mod:`sglang_omni.config.patch` and is executed by
-:mod:`sglang_omni.config.resolver`.
+The resolver records one ProvenanceEntry per contributing patch, plus the
+baseline the patches were applied on top of. That is what makes
+sgl-omni config explain <path> answerable. Nothing here decides anything;
+precedence lives in sglang_omni.config.patch and is executed by
+sglang_omni.config.resolver.
 """
 
 from __future__ import annotations
@@ -35,7 +28,7 @@ BASELINE_SOURCE = ConfigSource(
 )
 
 _UNSET = object()
-"""Distinguishes "no resolved value recorded" from a recorded ``None``."""
+"""Distinguishes no resolved value recorded from a recorded None."""
 
 
 @dataclass(frozen=True)
@@ -78,10 +71,6 @@ class ProvenanceMap:
     resolved: dict[str, Any] = field(default_factory=dict)
     """Post-validation value per touched path, read back off the built config."""
 
-    # ------------------------------------------------------------------
-    # building
-    # ------------------------------------------------------------------
-
     def record(self, patch: ConfigPatch, *, winning: bool) -> None:
         self.entries.setdefault(patch.path.raw, []).append(
             ProvenanceEntry(patch, winning)
@@ -101,10 +90,6 @@ class ProvenanceMap:
             out.record(patch, winning=winners[patch.key] is patch)
         return out
 
-    # ------------------------------------------------------------------
-    # querying
-    # ------------------------------------------------------------------
-
     def paths(self) -> list[str]:
         return sorted(self.entries)
 
@@ -122,13 +107,13 @@ class ProvenanceMap:
         return self.resolved.get(path, default)
 
     def explain(self, path: str) -> str:
-        """Human-readable answer to 'why is this value what it is'.
+        """Human-readable answer to why is this value what it is.
 
         The headline reports the value the built config actually holds --
         validation may have rewritten what the winning source supplied. The
         winner's own line keeps the source's value, with the rewrite noted.
 
-        Callers ask :meth:`touched` first; an untouched path raises ``KeyError``.
+        Callers ask touched first; an untouched path raises KeyError.
         """
         history = self.entries[path]
         winner = self.winner(path)
