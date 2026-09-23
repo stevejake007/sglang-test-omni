@@ -16,7 +16,7 @@ ALAW = "alaw"
 
 # WAVE format tags, registered in RFC 2361 (WAVE_FORMAT_ALAW = 0x0006,
 # WAVE_FORMAT_MULAW = 0x0007): https://www.rfc-editor.org/rfc/rfc2361
-_WAV_FORMAT_TAGS = {MULAW: 7, ALAW: 6}
+WAV_FORMAT_TAGS = {MULAW: 7, ALAW: 6}
 
 # Media types telephony providers and SIP stacks attach to raw G.711 bytes.
 # audio/basic is 8 kHz µ-law per RFC 2046 section 4.3:
@@ -25,17 +25,17 @@ _WAV_FORMAT_TAGS = {MULAW: 7, ALAW: 6}
 # https://www.rfc-editor.org/rfc/rfc4856
 # audio/x-mulaw is what Twilio Media Streams put in their mediaFormat:
 # https://www.twilio.com/docs/voice/media-streams/websocket-messages
-_MULAW_CONTENT_TYPES = frozenset({"audio/basic", "audio/pcmu", "audio/x-mulaw"})
-_ALAW_CONTENT_TYPES = frozenset({"audio/pcma"})
+MULAW_CONTENT_TYPES = frozenset({"audio/basic", "audio/pcmu", "audio/x-mulaw"})
+ALAW_CONTENT_TYPES = frozenset({"audio/pcma"})
 
 # Media types that carry no format information, so the filename decides.
-_GENERIC_CONTENT_TYPES = frozenset({"", "application/octet-stream", "audio/*"})
+GENERIC_CONTENT_TYPES = frozenset({"", "application/octet-stream", "audio/*"})
 
 # Extensions for headerless G.711: .ul/.al are what ffmpeg and sox use
 # (`ffmpeg -h demuxer=mulaw`), .ulaw/.alaw are Asterisk's recording formats:
 # https://docs.asterisk.org/Getting-Started/Installing-Asterisk/Installing-Asterisk-From-Source/Exploring-Sound-Prompts/
-_MULAW_EXTENSIONS = frozenset({".ulaw", ".ul"})
-_ALAW_EXTENSIONS = frozenset({".alaw", ".al"})
+MULAW_EXTENSIONS = frozenset({".ulaw", ".ul"})
+ALAW_EXTENSIONS = frozenset({".alaw", ".al"})
 
 
 def resolve_g711_encoding(
@@ -43,19 +43,19 @@ def resolve_g711_encoding(
 ) -> str | None:
     """Work out whether a caller declared raw G.711 audio."""
     normalized = (content_type or "").split(";", 1)[0].strip().lower()
-    if normalized in _MULAW_CONTENT_TYPES:
+    if normalized in MULAW_CONTENT_TYPES:
         return MULAW
-    if normalized in _ALAW_CONTENT_TYPES:
+    if normalized in ALAW_CONTENT_TYPES:
         return ALAW
-    if normalized not in _GENERIC_CONTENT_TYPES:
+    if normalized not in GENERIC_CONTENT_TYPES:
         return None
 
     name = (filename or "").strip().lower()
     dot = name.rfind(".")
     extension = name[dot:] if dot >= 0 else ""
-    if extension in _MULAW_EXTENSIONS:
+    if extension in MULAW_EXTENSIONS:
         return MULAW
-    if extension in _ALAW_EXTENSIONS:
+    if extension in ALAW_EXTENSIONS:
         return ALAW
     return None
 
@@ -67,7 +67,7 @@ def wrap_g711_as_wav(
     if is_riff_wav(data) or is_sun_au(data):
         return data
     try:
-        fmt_tag = _WAV_FORMAT_TAGS[encoding]
+        fmt_tag = WAV_FORMAT_TAGS[encoding]
     except KeyError:
         raise ValueError(f"Unsupported G.711 encoding: {encoding!r}") from None
     channels = 1
