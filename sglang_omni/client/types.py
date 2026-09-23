@@ -95,7 +95,6 @@ class GenerateRequest:
     stream: bool = True
     max_tokens: int | None = None
 
-    # Multi-modal support
     output_modalities: list[str] | None = None
     multimodal_train_inputs: dict[str, Any] | None = None
 
@@ -179,11 +178,6 @@ class AbortResult:
     success: bool
     level_applied: AbortLevel
     partial_output: GenerateChunk | None = None
-
-
-# ---------------------------------------------------------------------------
-# High-level result types
-# ---------------------------------------------------------------------------
 
 
 @dataclass
