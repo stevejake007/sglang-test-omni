@@ -1,19 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Where every configuration value came from.
-
-The resolver records one :class:`ProvenanceEntry` per contributing patch, plus
-the baseline the patches were applied on top of. That is what makes
-``sgl-omni config explain <path>`` answerable::
-
-    stages.thinker.engine.mem_fraction_static = 0.8
-      0.87  <- model default (Qwen3OmniConfig)
-      0.70  <- yaml file (configs/omni.yaml)            [superseded]
-      0.80  <- cli flag (--thinker-mem-fraction-static) [winner]
-
-Nothing here decides anything; precedence lives in
-:mod:`sglang_omni.config.patch` and is executed by
-:mod:`sglang_omni.config.resolver`.
-"""
+"""Where every configuration value came from."""
 
 from __future__ import annotations
 
@@ -34,8 +20,8 @@ BASELINE_SOURCE = ConfigSource(
     detail="value before any patch was applied",
 )
 
-_UNSET = object()
-"""Distinguishes "no resolved value recorded" from a recorded ``None``."""
+UNSET = object()
+"""Distinguishes no resolved value recorded from a recorded None."""
 
 
 @dataclass(frozen=True)
@@ -57,15 +43,13 @@ class ProvenanceEntry:
     def source(self) -> ConfigSource:
         return self.patch.source
 
-    def render(self, resolved: Any = _UNSET) -> str:
+    def render(self, resolved: Any = UNSET) -> str:
         marker = "[winner]" if self.winning else "[superseded]"
         line = f"{self.value!r}  <- {self.source.describe()}  {marker}"
-        if self.winning and resolved is not _UNSET and resolved != self.value:
+        if self.winning and resolved is not UNSET and resolved != self.value:
             # The model's own validation rewrote the value after this patch
             # won; showing only what the source said would claim it stuck.
             line += f" (resolved to {resolved!r})"
-        else:
-            pass
         return line
 
 
@@ -79,10 +63,6 @@ class ProvenanceMap:
 
     resolved: dict[str, Any] = field(default_factory=dict)
     """Post-validation value per touched path, read back off the built config."""
-
-    # ------------------------------------------------------------------
-    # building
-    # ------------------------------------------------------------------
 
     def record(self, patch: ConfigPatch, *, winning: bool) -> None:
         self.entries.setdefault(patch.path.raw, []).append(
@@ -103,10 +83,6 @@ class ProvenanceMap:
             out.record(patch, winning=winners[patch.key] is patch)
         return out
 
-    # ------------------------------------------------------------------
-    # querying
-    # ------------------------------------------------------------------
-
     def paths(self) -> list[str]:
         return sorted(self.entries)
 
@@ -114,8 +90,6 @@ class ProvenanceMap:
         for entry in reversed(self.entries.get(path, [])):
             if entry.winning:
                 return entry
-            else:
-                pass
         return None
 
     def touched(self, path: str) -> bool:
@@ -126,27 +100,18 @@ class ProvenanceMap:
         return self.resolved.get(path, default)
 
     def explain(self, path: str) -> str:
-        """Human-readable answer to 'why is this value what it is'.
-
-        The headline reports the value the built config actually holds --
-        validation may have rewritten what the winning source supplied. The
-        winner's own line keeps the source's value, with the rewrite noted.
-
-        Callers ask :meth:`touched` first; an untouched path raises ``KeyError``.
-        """
+        """Human-readable answer to why is this value what it is."""
         history = self.entries[path]
         winner = self.winner(path)
-        resolved = self.resolved.get(path, _UNSET)
+        resolved = self.resolved.get(path, UNSET)
         if winner is None:
             headline = path
-        elif resolved is _UNSET:
+        elif resolved is UNSET:
             headline = f"{path} = {winner.value!r}"
         else:
             headline = f"{path} = {resolved!r}"
         lines = [headline]
         if path in self.baseline:
             lines.append(f"  {self.baseline[path]!r}  <- {BASELINE_SOURCE.describe()}")
-        else:
-            pass
         lines.extend(f"  {entry.render(resolved)}" for entry in history)
         return "\n".join(lines)
