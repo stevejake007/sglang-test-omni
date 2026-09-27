@@ -132,49 +132,43 @@ class SimpleScheduler:
             return batch
 
         deferred_messages: list[IncomingMessage] = []
-        completed = False
-        try:
-            batch_key = self.message_batch_key(first_msg)
-            batch_cost = self.message_cost(first_msg)
-            deadline: float | None = (
-                time.monotonic() + self._max_batch_wait_s
-                if self._batch_wait_when_idle
-                else None
-            )
-            candidates_seen = 0
-            while len(batch) < self._max_batch_size:
-                msg = self.next_batch_candidate(deadline)
-                if msg is None:
-                    break
-                candidates_seen += 1
-                deferred_messages.append(msg)
+        batch_key = self.message_batch_key(first_msg)
+        batch_cost = self.message_cost(first_msg)
+        deadline: float | None = (
+            time.monotonic() + self._max_batch_wait_s
+            if self._batch_wait_when_idle
+            else None
+        )
+        candidates_seen = 0
+        while len(batch) < self._max_batch_size:
+            msg = self.next_batch_candidate(deadline)
+            if msg is None:
+                break
+            candidates_seen += 1
+            deferred_messages.append(msg)
 
-                if msg.type == "new_request":
-                    if self.message_batch_key(msg) != batch_key:
-                        if candidates_seen >= self._max_batch_size - 1:
-                            break
-                        continue
-
-                    if self._max_batch_cost is not None:
-                        msg_cost = self.message_cost(msg)
-                        if batch and batch_cost + msg_cost > self._max_batch_cost:
-                            break
-                        batch_cost += msg_cost
-                    deferred_messages.pop()
-                    batch.append(msg)
-                    if deadline is None:
-                        deadline = time.monotonic() + self._max_batch_wait_s
-                else:
+            if msg.type == "new_request":
+                if self.message_batch_key(msg) != batch_key:
                     if candidates_seen >= self._max_batch_size - 1:
                         break
-            completed = True
-            return batch
-        finally:
-            for msg in reversed(deferred_messages):
-                self._pending_messages.appendleft(msg)
-            if not completed:
-                for msg in reversed(batch[1:]):
-                    self._pending_messages.appendleft(msg)
+                    continue
+
+                if self._max_batch_cost is not None:
+                    msg_cost = self.message_cost(msg)
+                    if batch_cost + msg_cost > self._max_batch_cost:
+                        break
+                    batch_cost += msg_cost
+                deferred_messages.pop()
+                batch.append(msg)
+                if deadline is None:
+                    deadline = time.monotonic() + self._max_batch_wait_s
+            else:
+                if candidates_seen >= self._max_batch_size - 1:
+                    break
+
+        for msg in reversed(deferred_messages):
+            self._pending_messages.appendleft(msg)
+        return batch
 
     @staticmethod
     def emit_result(
