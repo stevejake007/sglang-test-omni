@@ -97,11 +97,6 @@ class SimpleScheduler:
             return 0
         return max(int(self._request_cost_fn(msg.data)), 0)
 
-    def message_batch_key(self, msg: IncomingMessage) -> Any:
-        if self._batch_key_fn is None or msg.type != "new_request":
-            return None
-        return self._batch_key_fn(msg.data)
-
     def next_message(self) -> IncomingMessage | None:
         if self._pending_messages:
             return self._pending_messages.popleft()
@@ -132,7 +127,11 @@ class SimpleScheduler:
             return batch
 
         deferred_messages: list[IncomingMessage] = []
-        batch_key = self.message_batch_key(first_msg)
+        first_key = (
+            self._batch_key_fn(first_msg.data)
+            if self._batch_key_fn is not None and first_msg.type == "new_request"
+            else None
+        )
         batch_cost = self.message_cost(first_msg)
         deadline: float | None = (
             time.monotonic() + self._max_batch_wait_s
@@ -148,7 +147,12 @@ class SimpleScheduler:
             deferred_messages.append(msg)
 
             if msg.type == "new_request":
-                if self.message_batch_key(msg) != batch_key:
+                msg_key = (
+                    self._batch_key_fn(msg.data)
+                    if self._batch_key_fn is not None
+                    else None
+                )
+                if msg_key != first_key:
                     if candidates_seen >= self._max_batch_size - 1:
                         break
                     continue
