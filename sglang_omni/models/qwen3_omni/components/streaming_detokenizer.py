@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from transformers import AutoTokenizer
 
 from sglang_omni.models.qwen3_omni.merge import decode_events
@@ -14,12 +16,14 @@ from sglang_omni.proto import StagePayload
 from sglang_omni.scheduling.streaming_detokenizer import (
     StreamingDetokenizeScheduler as SharedStreamingDetokenizeScheduler,
 )
-from sglang_omni.scheduling.streaming_detokenizer import Tokenizer
+from sglang_omni.scheduling.streaming_detokenizer import (
+    Tokenizer,
+    prompt_token_count,
+    thinker_output,
+)
 
-THINKER_STAGE = "thinker"
 
-
-def event_to_dict(event: Qwen3OmniEvent) -> dict:
+def event_to_dict(event: Qwen3OmniEvent) -> dict[str, Any]:
     return {
         "type": event.type,
         "modality": event.modality,
@@ -28,36 +32,13 @@ def event_to_dict(event: Qwen3OmniEvent) -> dict:
     }
 
 
-def thinker_output(state: Qwen3OmniPipelineState) -> dict:
-    thinker_out = state.thinker_out or state.engine_outputs.get(THINKER_STAGE)
-    if isinstance(thinker_out, dict):
-        return thinker_out
-    return {
-        "output_ids": [],
-        "step": 0,
-        "is_final": True,
-        "extra_model_outputs": {},
-    }
-
-
-def prompt_token_count(state: Qwen3OmniPipelineState) -> int:
-    if not isinstance(state.prompt, dict):
-        return 0
-    input_ids = state.prompt.get("input_ids")
-    if input_ids is None:
-        return 0
-    if isinstance(input_ids, list):
-        return len(input_ids)
-    return int(input_ids.numel())
-
-
 def build_decode_result(
     payload: StagePayload,
     *,
     tokenizer: Tokenizer,
     eos_token_id: int | None,
     is_streaming: bool,
-) -> dict:
+) -> dict[str, Any]:
     state = Qwen3OmniPipelineState.from_dict(payload.data)
     thinker_out = thinker_output(state)
     step = int(thinker_out.get("step") or len(thinker_out.get("output_ids", [])))
@@ -70,7 +51,7 @@ def build_decode_result(
             step=step,
         )
     )
-    result: dict = {"events": [event_to_dict(event) for event in events]}
+    result: dict[str, Any] = {"events": [event_to_dict(event) for event in events]}
     final_event = next(
         (
             event

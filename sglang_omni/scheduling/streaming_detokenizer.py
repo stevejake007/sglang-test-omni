@@ -12,17 +12,18 @@ import queue
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 from sglang_omni.proto import StagePayload
 from sglang_omni.scheduling.messages import IncomingMessage, OutgoingMessage
 
 logger = logging.getLogger(__name__)
 
+THINKER_STAGE = "thinker"
 DONE_SEEN_MAX = 10000
 DONE_SEEN_EVICT_TO = 5000
 
-BuildResultFn = Callable[[StagePayload, bool], dict]
+BuildResultFn = Callable[[StagePayload, bool], dict[str, Any]]
 
 
 class Tokenizer(Protocol):
@@ -39,6 +40,14 @@ class StreamChunk(Protocol):
     data: int | HasItem
 
 
+class PipelineState(Protocol):
+    """Minimal view of a model pipeline state needed to build a decode result."""
+
+    thinker_out: dict | None
+    engine_outputs: dict[str, Any]
+    prompt: dict | None
+
+
 @dataclass(kw_only=True)
 class RequestState:
     pending_tokens: list[int] = field(default_factory=list)
@@ -46,10 +55,31 @@ class RequestState:
     done: bool = False
 
 
-def stream_token_id(data: int | HasItem) -> int:
-    if isinstance(data, int):
-        return data
-    return int(data.item())
+def is_streaming_request(payload: StagePayload) -> bool:
+    return bool((payload.request.params or {}).get("stream", False))
+
+
+def thinker_output(state: PipelineState) -> dict[str, Any]:
+    thinker_out = state.thinker_out or state.engine_outputs.get(THINKER_STAGE)
+    if isinstance(thinker_out, dict):
+        return thinker_out
+    return {
+        "output_ids": [],
+        "step": 0,
+        "is_final": True,
+        "extra_model_outputs": {},
+    }
+
+
+def prompt_token_count(state: PipelineState) -> int:
+    if not isinstance(state.prompt, dict):
+        return 0
+    input_ids = state.prompt.get("input_ids")
+    if input_ids is None:
+        return 0
+    if isinstance(input_ids, list):
+        return len(input_ids)
+    return int(input_ids.numel())
 
 
 class StreamingDetokenizeScheduler:
@@ -88,9 +118,10 @@ class StreamingDetokenizeScheduler:
                 elif msg.type == "stream_done":
                     self.on_stream_done(msg.request_id)
             except Exception as exc:
-                # note (Chenyang): isolate one request; escaping start() crashes the stage.
+                # Isolate one request; escaping start() crashes the whole stage.
                 logger.exception(
-                    f"StreamingDetokenizeScheduler failed request {msg.request_id}"
+                    "StreamingDetokenizeScheduler failed request %s",
+                    msg.request_id,
                 )
                 self.abort(msg.request_id)
                 self.outbox.put(
@@ -132,7 +163,9 @@ class StreamingDetokenizeScheduler:
 
     def on_stream_chunk(self, request_id: str, chunk: StreamChunk) -> None:
         request_state = self.ensure_request_state(request_id)
-        request_state.pending_tokens.append(stream_token_id(chunk.data))
+        data = chunk.data
+        token_id = data if isinstance(data, int) else int(data.item())
+        request_state.pending_tokens.append(token_id)
         candidate = self.tokenizer.decode(
             request_state.pending_tokens, skip_special_tokens=True
         )
@@ -146,8 +179,7 @@ class StreamingDetokenizeScheduler:
         request_state = self.request_states.get(request_id)
         if request_state is None:
             self.done_seen[request_id] = None
-            overflow = len(self.done_seen) - DONE_SEEN_MAX
-            if overflow > 0:
+            if len(self.done_seen) > DONE_SEEN_MAX:
                 for _ in range(len(self.done_seen) - DONE_SEEN_EVICT_TO):
                     self.done_seen.popitem(last=False)
             return
@@ -161,8 +193,7 @@ class StreamingDetokenizeScheduler:
         if request_id in self.done_seen:
             request_state.done = True
             self.done_seen.pop(request_id, None)
-        is_streaming = bool((payload.request.params or {}).get("stream", False))
-        if request_state.done or not is_streaming:
+        if request_state.done or not is_streaming_request(payload):
             self.finalize(request_id)
 
     def finalize(self, request_id: str) -> None:
@@ -176,16 +207,12 @@ class StreamingDetokenizeScheduler:
             )
             if leftover:
                 self.emit_text_delta(request_id, leftover)
-        is_streaming = bool(
-            (request_state.payload.request.params or {}).get("stream", False)
-        )
-        request_state.payload.data = self.build_result(
-            request_state.payload, is_streaming
-        )
+        payload = request_state.payload
+        payload.data = self.build_result(payload, is_streaming_request(payload))
         self.outbox.put(
             OutgoingMessage(
                 request_id=request_id,
                 type="result",
-                data=request_state.payload,
+                data=payload,
             )
         )

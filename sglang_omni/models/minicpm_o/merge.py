@@ -6,9 +6,12 @@ from __future__ import annotations
 from typing import Any
 
 from sglang_omni.models.minicpm_o.payload_types import MiniCPMOPipelineState
-from sglang_omni.models.minicpm_o.routing import THINKER_STAGE
 from sglang_omni.proto import StagePayload
-from sglang_omni.scheduling.streaming_detokenizer import Tokenizer
+from sglang_omni.scheduling.streaming_detokenizer import (
+    Tokenizer,
+    prompt_token_count,
+    thinker_output,
+)
 
 
 def merge_for_thinker(payloads: dict[str, StagePayload]) -> StagePayload:
@@ -33,36 +36,13 @@ def merge_for_thinker(payloads: dict[str, StagePayload]) -> StagePayload:
     )
 
 
-def thinker_output(state: MiniCPMOPipelineState) -> dict:
-    thinker_out = state.thinker_out or state.engine_outputs.get(THINKER_STAGE)
-    if isinstance(thinker_out, dict):
-        return thinker_out
-    return {
-        "output_ids": [],
-        "step": 0,
-        "is_final": True,
-        "extra_model_outputs": {},
-    }
-
-
-def prompt_token_count(state: MiniCPMOPipelineState) -> int:
-    if not isinstance(state.prompt, dict):
-        return 0
-    input_ids = state.prompt.get("input_ids")
-    if input_ids is None:
-        return 0
-    if isinstance(input_ids, list):
-        return len(input_ids)
-    return int(input_ids.numel())
-
-
 def build_decode_result(
     payload: StagePayload,
     *,
     tokenizer: Tokenizer,
     eos_token_id: int | None,
     is_streaming: bool,
-) -> dict:
+) -> dict[str, Any]:
     state = MiniCPMOPipelineState.from_dict(payload.data)
     thinker_out = thinker_output(state)
     output_ids = thinker_out.get("output_ids") or []
@@ -84,7 +64,7 @@ def build_decode_result(
         if tokens
         else []
     )
-    result: dict = {"events": events}
+    result: dict[str, Any] = {"events": events}
     if events:
         result.update(events[-1]["payload"])
         result.setdefault("modality", "text")
