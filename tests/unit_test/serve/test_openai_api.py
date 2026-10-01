@@ -32,9 +32,9 @@ from sglang_omni.serve.openai_api import (
 from sglang_omni.serve.protocol import ChatCompletionRequest, CreateSpeechRequest
 from sglang_omni.serve.speech_service import SpeechRequestValidator
 from sglang_omni.serve.transcriptions import (
-    _first_transcription_chunk,
-    _transcription_stream,
     build_transcription_generate_request,
+    first_transcription_chunk,
+    transcription_stream,
 )
 from tests.unit_test.fixtures.pipeline_fakes import RecordingCoordinatorControlPlane
 
@@ -1164,7 +1164,7 @@ def test_transcription_stream_close_reaches_coordinator_owner() -> None:
     async def run() -> None:
         client, coordinator, control_plane = streaming_client()
         request_id = "req-transcription-close"
-        stream = _transcription_stream(
+        stream = transcription_stream(
             client.generate(
                 GenerateRequest(model="whisper", prompt="hello", stream=True),
                 request_id=request_id,
@@ -1867,7 +1867,7 @@ def count_duration_probes(monkeypatch) -> list[int]:
         return real_probe(audio_bytes)
 
     monkeypatch.setattr(speech_to_text, "probe_audio_duration", counting_probe)
-    monkeypatch.setattr(transcriptions, "_probe_audio_duration", counting_probe)
+    monkeypatch.setattr(transcriptions, "probe_audio_duration", counting_probe)
     return calls
 
 
@@ -2068,7 +2068,7 @@ def test_total_duration_limit_is_re_enforced_on_the_decoded_audio(monkeypatch) -
     from sglang_omni.serve import transcriptions
 
     monkeypatch.setattr(
-        transcriptions, "_probe_audio_duration", lambda audio_bytes: 1.5
+        transcriptions, "probe_audio_duration", lambda audio_bytes: 1.5
     )
     transcription_client = ChunkRecordingTranscriptionClient()
     client = chunking_test_client(transcription_client, max_total_audio_s=2.0)
@@ -3059,7 +3059,7 @@ def test_transcription_first_chunk_disconnect_aborts_backend() -> None:
         request = DisconnectingRequest()
         request.disconnected.set()
         with pytest.raises(asyncio.CancelledError):
-            await _first_transcription_chunk(
+            await first_transcription_chunk(
                 request,
                 AbortRecordingClient(),
                 never_first_chunk(),

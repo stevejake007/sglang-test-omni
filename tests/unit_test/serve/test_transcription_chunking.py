@@ -180,7 +180,7 @@ def test_disabled_config_never_chunks() -> None:
 
 
 def test_unknown_duration_is_left_alone() -> None:
-    # 0.0 is what _probe_audio_duration returns when it cannot read the header.
+    # 0.0 is what probe_audio_duration returns when it cannot read the header.
     assert needs_chunking(0.0, ENABLED) is False
     assert needs_chunking(-1.0, ENABLED) is False
 
