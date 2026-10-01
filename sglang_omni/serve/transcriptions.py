@@ -34,19 +34,18 @@ TRANSCRIPTION_RESPONSE_FORMATS = (
     speech_to_text.DEFAULT_RESPONSE_FORMATS | speech_to_text.SEGMENT_RESPONSE_FORMATS
 )
 
-_first_transcription_chunk = speech_to_text.first_speech_to_text_chunk
-_transcription_stream = speech_to_text.speech_to_text_stream
-_cancel_task_bounded = speech_to_text.cancel_task_bounded
-_wait_for_request_disconnect = speech_to_text.wait_for_request_disconnect
-_probe_audio_duration = speech_to_text.probe_audio_duration
+first_transcription_chunk = speech_to_text.first_speech_to_text_chunk
+transcription_stream = speech_to_text.speech_to_text_stream
+cancel_task_bounded = speech_to_text.cancel_task_bounded
+probe_audio_duration = speech_to_text.probe_audio_duration
 build_transcription_generate_request = (
     speech_to_text.build_speech_to_text_generate_request
 )
 
 __all__ = [
     "LongAudioAdmission",
-    "_first_transcription_chunk",
-    "_transcription_stream",
+    "first_transcription_chunk",
+    "transcription_stream",
     "build_transcription_generate_request",
     "register_transcriptions",
 ]
@@ -110,7 +109,7 @@ def register_transcriptions(app: FastAPI) -> None:
         if (
             segment_timestamps
             and not speech_to_text.resolve_speech_to_text_adapter(
-                getattr(app.state, "architectures", None)
+                app.state.architectures
             ).supports_segment_timestamps
         ):
             raise HTTPException(
@@ -123,8 +122,8 @@ def register_transcriptions(app: FastAPI) -> None:
         else:
             pass
 
-        # TODO(Ratish): add the same pre-parser body limit used by voice uploads
-        # once transcription upload limits are defined.
+        # The pre-parser body limit applied to voice uploads is not enforced
+        # here; transcription upload limits are not defined yet.
         audio_bytes = await speech_to_text.read_and_validate_speech_to_text_audio(
             form.file
         )
@@ -138,7 +137,7 @@ def register_transcriptions(app: FastAPI) -> None:
                 endpoint_path=TRANSCRIPTIONS_ENDPOINT,
                 response_formats=TRANSCRIPTION_RESPONSE_FORMATS,
             )
-            duration_s = await asyncio.to_thread(_probe_audio_duration, audio_bytes)
+            duration_s = await asyncio.to_thread(probe_audio_duration, audio_bytes)
             if (
                 chunking.allow_audio_chunking
                 and duration_s > chunking.stream_clip_limit_s
@@ -179,13 +178,13 @@ def register_transcriptions(app: FastAPI) -> None:
                 gen_req=gen_req,
                 request_id=request_id,
                 audio_bytes=audio_bytes,
-                architectures=getattr(app.state, "architectures", None),
+                architectures=app.state.architectures,
                 duration_s=duration_s,
             )
         else:
             pass
 
-        duration_s = await asyncio.to_thread(_probe_audio_duration, audio_bytes)
+        duration_s = await asyncio.to_thread(probe_audio_duration, audio_bytes)
         admission: LongAudioAdmission = app.state.long_audio_admission
         admitted = False
         if needs_chunking(duration_s, chunking):
@@ -305,7 +304,7 @@ async def transcribe_planned_upload(
             task="transcribe",
             language=form.language,
             audio_bytes=audio_bytes,
-            architectures=getattr(app.state, "architectures", None),
+            architectures=app.state.architectures,
             duration_s=duration_s,
             response_formats=TRANSCRIPTION_RESPONSE_FORMATS,
         )
@@ -314,7 +313,7 @@ async def transcribe_planned_upload(
 
     try:
         adapter = speech_to_text.resolve_speech_to_text_adapter(
-            getattr(app.state, "architectures", None)
+            app.state.architectures
         )
         chunk_texts = await await_transcription_with_disconnect_abort(
             request,
@@ -356,7 +355,7 @@ async def transcribe_planned_upload(
         language=form.language,
         plan=plan,
         chunk_texts=chunk_texts,
-        architectures=getattr(app.state, "architectures", None),
+        architectures=app.state.architectures,
     )
 
 
@@ -588,7 +587,9 @@ async def await_transcription_with_disconnect_abort(
     which aborts the in-flight engine requests.
     """
     work_task = asyncio.create_task(work)
-    disconnect_task = asyncio.create_task(_wait_for_request_disconnect(request))
+    disconnect_task = asyncio.create_task(
+        speech_to_text.wait_for_request_disconnect(request)
+    )
     try:
         done, _ = await asyncio.wait(
             {work_task, disconnect_task},
@@ -603,10 +604,10 @@ async def await_transcription_with_disconnect_abort(
         # Clean up both tasks on every exit, otherwise the work task keeps
         # running and nobody aborts its engine requests.
         if not work_task.done():
-            await _cancel_task_bounded(work_task)
+            await cancel_task_bounded(work_task)
         else:
             pass
         if not disconnect_task.done():
-            await _cancel_task_bounded(disconnect_task)
+            await cancel_task_bounded(disconnect_task)
         else:
             pass
