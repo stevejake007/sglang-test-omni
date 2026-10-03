@@ -88,12 +88,12 @@ def register_translations(app: FastAPI) -> None:
         except HTTPException as exc:
             return http_exception_response(exc, param="response_format")
         segment_timestamps = response_format in speech_to_text.SEGMENT_RESPONSE_FORMATS
-        # Note (Akazaakane): Reject unsupported subtitle requests before audio
+        # note (Akazaakane): Reject unsupported subtitle requests before audio
         # decode and GPU dispatch, matching the transcription endpoint.
         if (
             segment_timestamps
             and not speech_to_text.resolve_speech_to_text_adapter(
-                getattr(app.state, "architectures", None)
+                app.state.architectures
             ).supports_segment_timestamps
         ):
             return invalid_request(
@@ -151,7 +151,7 @@ def register_translations(app: FastAPI) -> None:
                     gen_req=gen_req,
                     request_id=request_id,
                     audio_bytes=audio_bytes,
-                    architectures=getattr(app.state, "architectures", None),
+                    architectures=app.state.architectures,
                     duration_s=duration_s,
                     operation_name="translation",
                 )
@@ -181,7 +181,7 @@ def register_translations(app: FastAPI) -> None:
                 task="translate",
                 language=language,
                 audio_bytes=audio_bytes,
-                architectures=getattr(app.state, "architectures", None),
+                architectures=app.state.architectures,
                 duration_s=duration_s,
                 response_formats=TRANSLATION_RESPONSE_FORMATS,
             )
