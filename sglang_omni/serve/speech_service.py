@@ -56,15 +56,15 @@ else:
 
 logger = logging.getLogger(__name__)
 
-_TTS_TASK_TYPE_ALIASES = {
+TTS_TASK_TYPE_ALIASES = {
     task_type.replace("_", "").replace("-", "").lower(): task_type
     for task_type in SUPPORTED_TTS_TASK_TYPES
 }
-_REFERENCE_AUDIO_FIELDS = ("audio_path", "ref_audio", "audio")
+REFERENCE_AUDIO_FIELDS = ("audio_path", "ref_audio", "audio")
 FrozenJsonValue: TypeAlias = (
     str | int | float | bool | None | tuple["FrozenJsonValue", ...]
 )
-_ReferenceCacheKey = tuple[
+ReferenceCacheKey = tuple[
     str, str | None, str | None, str | None, tuple[FrozenJsonValue, ...]
 ]
 
@@ -556,7 +556,7 @@ class SpeechRequestValidator:
         task_indexes: list[int] = []
         task_request_ids: list[str] = []
         reference_tasks: dict[
-            _ReferenceCacheKey, asyncio.Task[PreparedSpeechReferences]
+            ReferenceCacheKey, asyncio.Task[PreparedSpeechReferences]
         ] = {}
         reference_task_lock = asyncio.Lock()
 
@@ -625,7 +625,7 @@ class SpeechRequestValidator:
         request_id: str,
         index: int,
         reference_tasks: dict[
-            _ReferenceCacheKey, asyncio.Task[PreparedSpeechReferences]
+            ReferenceCacheKey, asyncio.Task[PreparedSpeechReferences]
         ],
         reference_task_lock: asyncio.Lock,
     ) -> SpeechBatchResult:
@@ -664,7 +664,7 @@ class SpeechRequestValidator:
         request: CreateSpeechRequest,
         *,
         reference_tasks: dict[
-            _ReferenceCacheKey, asyncio.Task[PreparedSpeechReferences]
+            ReferenceCacheKey, asyncio.Task[PreparedSpeechReferences]
         ],
         reference_task_lock: asyncio.Lock,
     ) -> PreparedSpeechRequest:
@@ -914,7 +914,7 @@ class SpeechRequestValidator:
 
     def normalize_speech_reference(self, reference: SpeechReference) -> SpeechReference:
         updates: dict[str, str | None] = {
-            field_name: None for field_name in _REFERENCE_AUDIO_FIELDS
+            field_name: None for field_name in REFERENCE_AUDIO_FIELDS
         }
         if reference.data is not None:
             updates.update(
@@ -1275,7 +1275,7 @@ def batch_item_error(error: SpeechAPIError, *, index: int) -> SpeechAPIError:
     )
 
 
-def batch_reference_cache_key(request: CreateSpeechRequest) -> _ReferenceCacheKey:
+def batch_reference_cache_key(request: CreateSpeechRequest) -> ReferenceCacheKey:
     references = tuple(
         freeze_reference_value(reference.model_dump(mode="json", exclude_none=True))
         for reference in request.references or ()
@@ -1361,7 +1361,7 @@ def validate_reference_size(size_bytes: int, *, param: str) -> None:
 
 
 def normalize_task_type(value: str) -> str:
-    normalized = _TTS_TASK_TYPE_ALIASES.get(
+    normalized = TTS_TASK_TYPE_ALIASES.get(
         value.strip().replace("_", "").replace("-", "").lower()
     )
     if normalized is None:
