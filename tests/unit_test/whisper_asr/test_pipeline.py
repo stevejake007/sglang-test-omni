@@ -478,7 +478,7 @@ def test_whisper_asr_threads_explicit_cuda_graph_bs(monkeypatch) -> None:
     assert len(attest_calls) == 1
 
 
-def _record_pre_infra_setup_targets(
+def record_pre_infra_setup_targets(
     monkeypatch: pytest.MonkeyPatch, resolver: Callable[..., Path]
 ) -> list[str]:
     """Record the model path used by each loader."""
@@ -530,7 +530,7 @@ def test_whisper_asr_pre_infra_setup_loads_from_cached_metadata(
         assert (model_path, local_files_only) == ("openai/whisper-large-v3", True)
         return tmp_path
 
-    targets = _record_pre_infra_setup_targets(monkeypatch, _resolve)
+    targets = record_pre_infra_setup_targets(monkeypatch, _resolve)
     assert targets == [str(tmp_path)] * 3
 
 
@@ -563,7 +563,7 @@ def test_whisper_asr_pre_infra_setup_keeps_repo_id_for_partial_cache(
     def _resolve(model_path: str, *, local_files_only: bool) -> Path:
         return tmp_path
 
-    targets = _record_pre_infra_setup_targets(monkeypatch, _resolve)
+    targets = record_pre_infra_setup_targets(monkeypatch, _resolve)
     assert targets == ["openai/whisper-large-v3"] * 3
 
 
@@ -573,5 +573,5 @@ def test_whisper_asr_pre_infra_setup_keeps_repo_id_on_cache_miss(
     def _resolve(model_path: str, *, local_files_only: bool) -> Path:
         raise OSError("not cached")
 
-    targets = _record_pre_infra_setup_targets(monkeypatch, _resolve)
+    targets = record_pre_infra_setup_targets(monkeypatch, _resolve)
     assert targets == ["openai/whisper-large-v3"] * 3
