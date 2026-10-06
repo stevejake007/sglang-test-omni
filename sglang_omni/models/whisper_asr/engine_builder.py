@@ -39,8 +39,8 @@ else:
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_ENCODER_GRAPH_BATCH_BUCKETS = (1, 2, 4, 8, 12, 16)
-_WHISPER_METADATA_FILES = (
+DEFAULT_ENCODER_GRAPH_BATCH_BUCKETS = (1, 2, 4, 8, 12, 16)
+WHISPER_METADATA_FILES = (
     "config.json",
     "preprocessor_config.json",
     "tokenizer_config.json",
@@ -50,9 +50,9 @@ _WHISPER_METADATA_FILES = (
 )
 
 
-_TASK_PREFIX_SLACK_TOKENS = 8
-_DECODER_PREFILL_TOKENS_PER_REQUEST = (
-    MAX_PREV_CONTEXT_TOKENS + _TASK_PREFIX_SLACK_TOKENS
+TASK_PREFIX_SLACK_TOKENS = 8
+DECODER_PREFILL_TOKENS_PER_REQUEST = (
+    MAX_PREV_CONTEXT_TOKENS + TASK_PREFIX_SLACK_TOKENS
 )
 
 
@@ -63,7 +63,7 @@ def max_reachable_decoder_prefill_tokens(
     request_limit: int,
 ) -> int:
     """Return the largest decoder-token batch allowed by atomic admission."""
-    max_request_tokens = encoder_token_count + _DECODER_PREFILL_TOKENS_PER_REQUEST
+    max_request_tokens = encoder_token_count + DECODER_PREFILL_TOKENS_PER_REQUEST
     lower_request_count = min(
         request_limit,
         max(1, budget // max_request_tokens),
@@ -78,15 +78,15 @@ def max_reachable_decoder_prefill_tokens(
     # budget - request_count * encoder_tokens). The lower envelope of those
     # increasing and decreasing lines peaks next to their intersection.
     lower_cap = min(
-        lower_request_count * _DECODER_PREFILL_TOKENS_PER_REQUEST,
+        lower_request_count * DECODER_PREFILL_TOKENS_PER_REQUEST,
         max(0, budget - lower_request_count * encoder_token_count),
     )
     upper_cap = min(
-        upper_request_count * _DECODER_PREFILL_TOKENS_PER_REQUEST,
+        upper_request_count * DECODER_PREFILL_TOKENS_PER_REQUEST,
         max(0, budget - upper_request_count * encoder_token_count),
     )
     # The scheduler always admits the first whole request.
-    return max(_DECODER_PREFILL_TOKENS_PER_REQUEST, lower_cap, upper_cap)
+    return max(DECODER_PREFILL_TOKENS_PER_REQUEST, lower_cap, upper_cap)
 
 
 def reachable_prefill_cuda_graph_max_bs(
@@ -131,7 +131,7 @@ def reachable_prefill_cuda_graph_max_bs(
 
 
 def normalize_encoder_graph_buckets(buckets: list[int] | None) -> tuple[int, ...]:
-    values = _DEFAULT_ENCODER_GRAPH_BATCH_BUCKETS if buckets is None else buckets
+    values = DEFAULT_ENCODER_GRAPH_BATCH_BUCKETS if buckets is None else buckets
     normalized = {int(value) for value in values}
     return tuple(sorted(value for value in normalized if value >= 1))
 
@@ -268,10 +268,13 @@ class WhisperASREngineBuilder(AsrEngineBuilder[WhisperASRRequestData]):
         try:
             cached_dir = resolve_model_path(checkpoint_dir, local_files_only=True)
         except OSError:
+            # Cache miss: keep the repo id so the loaders resolve it normally.
             pass
         else:
-            if all((cached_dir / name).is_file() for name in _WHISPER_METADATA_FILES):
+            if all((cached_dir / name).is_file() for name in WHISPER_METADATA_FILES):
                 load_path = str(cached_dir)
+            else:
+                pass
         self.processor = AutoProcessor.from_pretrained(load_path)
         self.tokenizer = self.processor.tokenizer
         self.generation_config = GenerationConfig.from_pretrained(load_path)
@@ -282,7 +285,7 @@ class WhisperASREngineBuilder(AsrEngineBuilder[WhisperASRRequestData]):
             self.encoder_token_count
             + MAX_PREV_CONTEXT_TOKENS
             + self.max_new_tokens
-            + _TASK_PREFIX_SLACK_TOKENS
+            + TASK_PREFIX_SLACK_TOKENS
         )
         self.decoder_context_len = int(
             AutoConfig.from_pretrained(load_path).max_target_positions or 448
@@ -316,15 +319,12 @@ class WhisperASREngineBuilder(AsrEngineBuilder[WhisperASRRequestData]):
             ),
         )
         logger.info(
-            "Resolved Whisper encoder CUDA graph buckets configured=%s "
-            "reachable=%s pre_lm=%s max_prefill_tokens=%d "
-            "encoder_token_count=%d max_running_requests=%d",
-            self.encoder_graph_batch_buckets,
-            resolved_buckets,
-            self.enable_pre_lm_encoder,
-            max_prefill_tokens,
-            self.encoder_token_count,
-            max_running_requests,
+            f"Resolved Whisper encoder CUDA graph buckets configured="
+            f"{self.encoder_graph_batch_buckets} reachable={resolved_buckets} "
+            f"pre_lm={self.enable_pre_lm_encoder} "
+            f"max_prefill_tokens={max_prefill_tokens} "
+            f"encoder_token_count={self.encoder_token_count} "
+            f"max_running_requests={max_running_requests}"
         )
         model.init_encoder_graphs(
             resolved_buckets,
@@ -356,16 +356,13 @@ class WhisperASREngineBuilder(AsrEngineBuilder[WhisperASRRequestData]):
         )
         service = self.audio_encoder_service
         logger.info(
-            "Whisper pre-LM encoder enabled (max_batch=%d, cache capacity=%d "
-            "entries x %.2f MB = %.2f GB, configured entries=%d, byte cap=%s, "
-            "pinned host memory=%s)",
-            self.pre_lm_max_batch_size,
-            service.cache_capacity_entries,
-            service.entry_bytes / 1e6,
-            service.cache_max_bytes / 1e9,
-            self.pre_lm_cache_max_entries,
-            self.pre_lm_cache_size_bytes,
-            service.pin_host_memory,
+            f"Whisper pre-LM encoder enabled (max_batch={self.pre_lm_max_batch_size}, "
+            f"cache capacity={service.cache_capacity_entries} entries x "
+            f"{service.entry_bytes / 1e6:.2f} MB = "
+            f"{service.cache_max_bytes / 1e9:.2f} GB, "
+            f"configured entries={self.pre_lm_cache_max_entries}, "
+            f"byte cap={self.pre_lm_cache_size_bytes}, "
+            f"pinned host memory={service.pin_host_memory})"
         )
 
     def adjust_overrides(self, overrides: dict[str, object]) -> None:
@@ -377,7 +374,7 @@ class WhisperASREngineBuilder(AsrEngineBuilder[WhisperASRRequestData]):
         else:
             pass
         overrides["chunked_prefill_size"] = 0
-        # Note (Akazaakane): Timestamped Whisper requests install an internal
+        # note (Akazaakane): Timestamped Whisper requests install an internal
         # per-request processor; this flag permits SGLang to execute it.
         overrides["enable_custom_logit_processor"] = True
         if (
