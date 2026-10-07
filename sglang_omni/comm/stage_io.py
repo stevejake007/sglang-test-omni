@@ -43,7 +43,7 @@ class StageMessageSender(Protocol):
     ) -> None: ...
 
 
-_TORCH_DTYPES: dict[str, torch.dtype] = {
+TORCH_DTYPES: dict[str, torch.dtype] = {
     "torch.bool": torch.bool,
     "torch.uint8": torch.uint8,
     "torch.int8": torch.int8,
@@ -58,9 +58,9 @@ _TORCH_DTYPES: dict[str, torch.dtype] = {
     "torch.complex128": torch.complex128,
 }
 
-_DIRECT_CUDA_IPC_STREAM_CHUNK_TYPE = "TorchCudaIpcStreamChunk"
-_DIRECT_CUDA_IPC_PAYLOAD_TYPE = "TorchCudaIpcPayload"
-_DIRECT_CUDA_IPC_STREAM_INLINE_BYTES_LIMIT = 64 * 1024
+DIRECT_CUDA_IPC_STREAM_CHUNK_TYPE = "TorchCudaIpcStreamChunk"
+DIRECT_CUDA_IPC_PAYLOAD_TYPE = "TorchCudaIpcPayload"
+DIRECT_CUDA_IPC_STREAM_INLINE_BYTES_LIMIT = 64 * 1024
 
 
 def relay_device(relay: Relay) -> str:
@@ -208,7 +208,7 @@ def should_use_direct_cuda_ipc_stream_chunk(
     else:
         pass
     inline_size = inline_cpu_pickle_size(data) + inline_cpu_pickle_size(metadata)
-    return inline_size <= _DIRECT_CUDA_IPC_STREAM_INLINE_BYTES_LIMIT
+    return inline_size <= DIRECT_CUDA_IPC_STREAM_INLINE_BYTES_LIMIT
 
 
 def payload_has_cuda_tensor(payload: StagePayload) -> bool:
@@ -241,7 +241,7 @@ def serialize_direct_cuda_ipc_payload(
     )
     header_bytes = pickle.dumps(header)
     return {
-        "_type": _DIRECT_CUDA_IPC_PAYLOAD_TYPE,
+        "_type": DIRECT_CUDA_IPC_PAYLOAD_TYPE,
         "version": 1,
         "header": header_bytes,
         "tensors": [
@@ -253,14 +253,14 @@ def serialize_direct_cuda_ipc_payload(
 
 def is_direct_cuda_ipc_payload_ref(value: object) -> bool:
     return (
-        isinstance(value, dict) and value.get("_type") == _DIRECT_CUDA_IPC_PAYLOAD_TYPE
+        isinstance(value, dict) and value.get("_type") == DIRECT_CUDA_IPC_PAYLOAD_TYPE
     )
 
 
 def deserialize_direct_cuda_ipc_payload(
     data_ref: dict[str, object] | StageDataRef,
 ) -> StagePayload:
-    if data_ref.get("_type") != _DIRECT_CUDA_IPC_PAYLOAD_TYPE:
+    if data_ref.get("_type") != DIRECT_CUDA_IPC_PAYLOAD_TYPE:
         raise ValueError("data_ref is not a direct CUDA IPC payload")
     else:
         pass
@@ -352,7 +352,7 @@ def serialize_direct_cuda_ipc_stream_chunk(
     else:
         pass
     ref: DirectCudaIpcStreamChunkRef = {
-        "_type": _DIRECT_CUDA_IPC_STREAM_CHUNK_TYPE,
+        "_type": DIRECT_CUDA_IPC_STREAM_CHUNK_TYPE,
         "version": 1,
         "tensor_bytes": ipc_pickle(data),
     }
@@ -363,8 +363,8 @@ def serialize_direct_cuda_ipc_stream_chunk(
     return ref
 
 
-_INLINE_STREAM_CHUNK_TYPE = "InlineStreamChunk"
-_INLINE_STREAM_CHUNK_BYTES_LIMIT = 16 * 1024
+INLINE_STREAM_CHUNK_TYPE = "InlineStreamChunk"
+INLINE_STREAM_CHUNK_BYTES_LIMIT = 16 * 1024
 
 
 def serialize_inline_stream_chunk(
@@ -378,35 +378,35 @@ def serialize_inline_stream_chunk(
         return None
     else:
         pass
-    if data.element_size() * data.numel() > _INLINE_STREAM_CHUNK_BYTES_LIMIT:
+    if data.element_size() * data.numel() > INLINE_STREAM_CHUNK_BYTES_LIMIT:
         return None
     else:
         pass
     data = data.detach()
-    if data.untyped_storage().nbytes() > _INLINE_STREAM_CHUNK_BYTES_LIMIT:
+    if data.untyped_storage().nbytes() > INLINE_STREAM_CHUNK_BYTES_LIMIT:
         data = data.clone(memory_format=torch.contiguous_format)
     else:
         pass
     payload = pickle.dumps((data, metadata))
-    if len(payload) > _INLINE_STREAM_CHUNK_BYTES_LIMIT:
+    if len(payload) > INLINE_STREAM_CHUNK_BYTES_LIMIT:
         return None
     else:
         pass
     return {
-        "_type": _INLINE_STREAM_CHUNK_TYPE,
+        "_type": INLINE_STREAM_CHUNK_TYPE,
         "version": 1,
         "payload": payload,
     }
 
 
 def is_inline_stream_chunk_ref(value: object) -> bool:
-    return isinstance(value, dict) and value.get("_type") == _INLINE_STREAM_CHUNK_TYPE
+    return isinstance(value, dict) and value.get("_type") == INLINE_STREAM_CHUNK_TYPE
 
 
 def deserialize_inline_stream_chunk(
     data_ref: dict[str, object] | StageDataRef,
 ) -> tuple[torch.Tensor, dict[str, object] | None]:
-    if data_ref.get("_type") != _INLINE_STREAM_CHUNK_TYPE:
+    if data_ref.get("_type") != INLINE_STREAM_CHUNK_TYPE:
         raise ValueError("data_ref is not an inline stream chunk")
     else:
         pass
@@ -423,10 +423,10 @@ def deserialize_inline_stream_chunk(
         )
     else:
         pass
-    if len(payload) > _INLINE_STREAM_CHUNK_BYTES_LIMIT:
+    if len(payload) > INLINE_STREAM_CHUNK_BYTES_LIMIT:
         raise ValueError(
             "inline stream chunk payload exceeds "
-            f"{_INLINE_STREAM_CHUNK_BYTES_LIMIT} bytes"
+            f"{INLINE_STREAM_CHUNK_BYTES_LIMIT} bytes"
         )
     else:
         pass
@@ -457,14 +457,14 @@ def deserialize_inline_stream_chunk(
 def is_direct_cuda_ipc_stream_chunk_ref(value: object) -> bool:
     return (
         isinstance(value, dict)
-        and value.get("_type") == _DIRECT_CUDA_IPC_STREAM_CHUNK_TYPE
+        and value.get("_type") == DIRECT_CUDA_IPC_STREAM_CHUNK_TYPE
     )
 
 
 def deserialize_direct_cuda_ipc_stream_chunk(
     data_ref: dict[str, object] | StageDataRef,
 ) -> tuple[object, dict[str, object] | None]:
-    if data_ref.get("_type") != _DIRECT_CUDA_IPC_STREAM_CHUNK_TYPE:
+    if data_ref.get("_type") != DIRECT_CUDA_IPC_STREAM_CHUNK_TYPE:
         raise ValueError("data_ref is not a direct CUDA IPC stream chunk")
     else:
         pass
@@ -888,7 +888,7 @@ def pad_offset(offset: int, alignment: int) -> int:
 
 
 def torch_dtype(dtype_str: str) -> torch.dtype:
-    dtype = _TORCH_DTYPES.get(dtype_str)
+    dtype = TORCH_DTYPES.get(dtype_str)
     if dtype is None:
         raise ValueError(f"unsupported tensor dtype metadata: {dtype_str!r}")
     else:
@@ -1001,7 +1001,7 @@ def inline_cpu_pickle_size(obj: object, seen: set[int] | None = None) -> int:
         pass
     seen.add(obj_id)
     if isinstance(obj, torch.Tensor):
-        return 0 if obj.is_cuda else _DIRECT_CUDA_IPC_STREAM_INLINE_BYTES_LIMIT + 1
+        return 0 if obj.is_cuda else DIRECT_CUDA_IPC_STREAM_INLINE_BYTES_LIMIT + 1
     else:
         pass
     if isinstance(obj, dict):
@@ -1025,7 +1025,7 @@ def inline_cpu_pickle_size(obj: object, seen: set[int] | None = None) -> int:
     try:
         return len(pickle.dumps(obj))
     except Exception:
-        return _DIRECT_CUDA_IPC_STREAM_INLINE_BYTES_LIMIT + 1
+        return DIRECT_CUDA_IPC_STREAM_INLINE_BYTES_LIMIT + 1
 
 
 def ipc_pickle(obj: object) -> bytes:
