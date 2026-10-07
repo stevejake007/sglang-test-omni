@@ -89,6 +89,7 @@ class RunnableFakeFlow(_PackedFlow):
     def __init__(self):
         super().__init__(channels=80, max_frames=8192)
         self.spk_embed_affine_layer = torch.nn.Linear(192, 80)
+        self.prefix_pool: stages.PrefixKVPool | None = None
 
 
 class GraphRunnableFakeFlow(RunnableFakeFlow):
@@ -205,6 +206,7 @@ def test_mlx_stream_scheduler_consumes_chunks_before_final_decode() -> None:
         flow_prompt_speech_token=torch.tensor([[1, 2]], dtype=torch.int32),
         flow_prompt_speech_feat=torch.ones(1, 2, 80),
         flow_embedding=torch.ones(1, 192),
+        finish_reason="length",
     )
     payload = make_payload(state)
     scheduler.stream_payloads["req"] = payload
@@ -222,6 +224,7 @@ def test_mlx_stream_scheduler_consumes_chunks_before_final_decode() -> None:
     messages = scheduler.on_stream_done("req")
 
     assert [message.type for message in messages] == ["stream", "result"]
+    assert messages[1].data.data["finish_reason"] == "length"
 
 
 def test_mps_hift_adapter_moves_f0_to_cpu_before_float64() -> None:
@@ -346,12 +349,13 @@ class FakeFlow(torch.nn.Module):
         super().__init__()
         self.anchor = torch.nn.Parameter(torch.zeros(1))
         self.calls = []
+        self.token_mel_ratio = 2
         self.decoder = SimpleNamespace(estimator=FakeEstimator())
 
     def inference(self, **kwargs):
         self.calls.append(kwargs)
         token_count = kwargs["token"].shape[1]
-        return torch.ones(1, 80, token_count * 2), None
+        return torch.ones(1, 80, token_count * self.token_mel_ratio), None
 
 
 def make_payload(state: FunCosyVoice3State) -> StagePayload:
@@ -885,6 +889,7 @@ def test_flow_admission_defers_request_after_long_singleton(monkeypatch) -> None
     scheduler = stages.create_vocoder_executor(
         "model",
         flow_prefix_cache_gb=0.0,
+        enable_flow_prefix_cuda_graph=True,
         device="cpu",
         flow_batch_admission_frames=2000,
         enable_dit_torch_compile=False,
@@ -917,7 +922,11 @@ def test_create_vocoder_executor_defaults_batch_for_real_lengths(monkeypatch) ->
         ),
     )
     scheduler = stages.create_vocoder_executor(
-        "model", device="cpu", enable_dit_torch_compile=False, flow_prefix_cache_gb=0.0
+        "model",
+        device="cpu",
+        enable_dit_torch_compile=False,
+        flow_prefix_cache_gb=0.0,
+        enable_flow_prefix_cuda_graph=True,
     )
 
     assert scheduler.max_batch_cost == stages.DEFAULT_FLOW_BATCH_ADMISSION_FRAMES
@@ -959,6 +968,7 @@ def test_create_vocoder_executor_threads_batch_configuration(monkeypatch) -> Non
     scheduler = stages.create_vocoder_executor(
         "model",
         flow_prefix_cache_gb=0.0,
+        enable_flow_prefix_cuda_graph=True,
         device="cpu",
         enable_dit_torch_compile=False,
         dtype="float16",
@@ -1008,6 +1018,7 @@ def test_create_vocoder_executor_threads_trt_flag(monkeypatch) -> None:
     stages.create_vocoder_executor(
         "model",
         flow_prefix_cache_gb=0.0,
+        enable_flow_prefix_cuda_graph=True,
         device="cpu",
         max_batch_size=4,
         enable_dit_torch_compile=False,
@@ -1044,7 +1055,11 @@ def create_scheduler_recording_native_compile(
 
     monkeypatch.setattr(stages, "compile_dit_backbone", fake_compile)
     scheduler = stages.create_vocoder_executor(
-        "model", device="cpu", flow_prefix_cache_gb=0.0, **kwargs
+        "model",
+        device="cpu",
+        flow_prefix_cache_gb=0.0,
+        enable_flow_prefix_cuda_graph=True,
+        **kwargs,
     )
     return compiled, scheduler
 
@@ -1152,6 +1167,7 @@ def test_create_vocoder_executor_compiles_before_flow_graph_capture(
     _scheduler = stages.create_vocoder_executor(
         "model",
         flow_prefix_cache_gb=0.0,
+        enable_flow_prefix_cuda_graph=True,
         device="cuda",
         enable_dit_torch_compile=enable_dit_torch_compile,
         enable_flow_cuda_graph=True,
@@ -1184,6 +1200,7 @@ def test_create_vocoder_executor_rejects_trt_and_compile() -> None:
         stages.create_vocoder_executor(
             "model",
             flow_prefix_cache_gb=0.0,
+            enable_flow_prefix_cuda_graph=True,
             enable_dit_torch_compile=True,
             enable_flow_estimator_trt=True,
         )
@@ -1321,6 +1338,7 @@ def test_create_vocoder_executor_rejects_non_positive_admission_budget(
         stages.create_vocoder_executor(
             "model",
             flow_prefix_cache_gb=0.0,
+            enable_flow_prefix_cuda_graph=True,
             device="cpu",
             flow_batch_admission_frames=0,
             enable_dit_torch_compile=False,
@@ -1342,6 +1360,7 @@ def test_pipeline_config_sets_flow_batch_admission_by_default() -> None:
         "max_batch_size": 16,
         "max_batch_wait_ms": 30,
         "enable_flow_cuda_graph": True,
+        "enable_flow_prefix_cuda_graph": True,
         "enable_flow_estimator_trt": False,
         "token_hop_len": 25,
         "token_max_hop_len": 100,
@@ -1558,7 +1577,7 @@ def prefix_pool_scheduler(
         return [torch.full((1, 1, 1), -1.0) for _ in items]
 
     vocoder = SimpleNamespace(
-        flow=SimpleNamespace(prefix_pool=object()),
+        flow=SimpleNamespace(prefix_pool=object(), token_mel_ratio=2),
         prefix_cache_rows=prefix_cache_rows,
         grow_prefix_cache=grow_prefix_cache,
         release_prefix_cache=released.append,
