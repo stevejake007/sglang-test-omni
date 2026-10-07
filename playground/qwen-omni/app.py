@@ -1,9 +1,10 @@
+"""Playground server for the Qwen-Omni demo UI."""
+
 import argparse
 import logging
 import mimetypes
 import os
 from pathlib import Path
-from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
@@ -14,23 +15,20 @@ from playground.http_utils import register_playground_favicon
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Filesystem browser API (/v1/fs/*)
-# ---------------------------------------------------------------------------
 
-_MEDIA_SUFFIXES = {
+MEDIA_SUFFIXES = {
     "audio": {".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg", ".webm"},
     "image": {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"},
     "video": {".mp4", ".mov", ".avi", ".mkv", ".webm"},
 }
 
 
-def _fs_root() -> Path:
-    """Filesystem root — always container root ``/``."""
+def fs_root() -> Path:
+    """Filesystem root is always the container root /."""
     return Path("/")
 
 
-def _fs_resolve(root: Path, raw_path: str | None) -> Path:
+def fs_resolve(root: Path, raw_path: str | None) -> Path:
     if raw_path is None or raw_path.strip() == "":
         candidate = root
     else:
@@ -50,15 +48,17 @@ def _fs_resolve(root: Path, raw_path: str | None) -> Path:
     return candidate
 
 
-def _fs_classify(path: Path) -> str:
+def fs_classify(path: Path) -> str:
     suffix = path.suffix.lower()
-    for kind, suffixes in _MEDIA_SUFFIXES.items():
+    for kind, suffixes in MEDIA_SUFFIXES.items():
         if suffix in suffixes:
             return kind
+        else:
+            pass
     return "other"
 
 
-def _register_home(app: FastAPI) -> None:
+def register_home(app: FastAPI) -> None:
     API_BASE = os.environ.get("SGLANG_OMNI_API_BASE", "")  # empty = use same origin
 
     @app.get("/")
@@ -67,28 +67,36 @@ def _register_home(app: FastAPI) -> None:
         if API_BASE:
             injection = f'<script>window.SGLANG_OMNI_API_BASE = "{API_BASE}";</script>'
             html = html.replace("<head>", f"<head>{injection}", 1)
+        else:
+            pass
         return HTMLResponse(html)
 
 
-def _register_filesystem(app: FastAPI) -> None:
+def register_filesystem(app: FastAPI) -> None:
     @app.get("/v1/fs/list")
     async def list_files(
         path: str | None = Query(default=None),
     ) -> JSONResponse:
         """List directory contents for the file browser."""
-        root = _fs_root()
-        current = _fs_resolve(root, path)
+        root = fs_root()
+        current = fs_resolve(root, path)
         if not root.exists() or not root.is_dir():
             raise HTTPException(
                 status_code=500,
                 detail=f"Filesystem root does not exist: {root}",
             )
+        else:
+            pass
         if not current.exists():
             raise HTTPException(status_code=404, detail=f"Path not found: {current}")
+        else:
+            pass
         if not current.is_dir():
             raise HTTPException(status_code=400, detail=f"Not a directory: {current}")
+        else:
+            pass
 
-        entries: list[dict[str, Any]] = []
+        entries: list[dict[str, str | bool | int | None]] = []
         for child in sorted(
             current.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())
         ):
@@ -101,11 +109,11 @@ def _register_filesystem(app: FastAPI) -> None:
             except ValueError:
                 continue
             is_dir = child.is_dir()
-            item: dict[str, Any] = {
+            item: dict[str, str | bool | int | None] = {
                 "name": child.name,
                 "path": str(resolved),
                 "is_dir": is_dir,
-                "kind": "dir" if is_dir else _fs_classify(child),
+                "kind": "dir" if is_dir else fs_classify(child),
             }
             if not is_dir:
                 try:
@@ -127,20 +135,26 @@ def _register_filesystem(app: FastAPI) -> None:
     @app.get("/v1/fs/file")
     async def read_file(path: str = Query(..., min_length=1)) -> FileResponse:
         """Download a file from the container filesystem."""
-        root = _fs_root()
+        root = fs_root()
         if not root.exists() or not root.is_dir():
             raise HTTPException(
                 status_code=500,
                 detail=f"Filesystem root does not exist: {root}",
             )
-        file_path = _fs_resolve(root, path)
+        else:
+            pass
+        file_path = fs_resolve(root, path)
         if not file_path.exists() or not file_path.is_file():
             raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
-        if _fs_classify(file_path) == "other":
+        else:
+            pass
+        if fs_classify(file_path) == "other":
             raise HTTPException(
                 status_code=403,
                 detail="Only image, audio and video files can be read",
             )
+        else:
+            pass
         media_type, _ = mimetypes.guess_type(file_path.name)
         return FileResponse(
             path=file_path,
@@ -159,8 +173,8 @@ app = FastAPI(title="sglang-omni-playground")
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 register_playground_favicon(app, frontend_dir=FRONTEND_DIR)
-_register_filesystem(app)
-_register_home(app)
+register_filesystem(app)
+register_home(app)
 assert FRONTEND_DIR.is_dir(), "Frontend directory does not exist"
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True))
 logger.info(f"Serving playground UI from {FRONTEND_DIR}")
