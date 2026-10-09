@@ -43,6 +43,7 @@ from sglang_omni.utils.gpu_compat import (
 from sglang_omni.utils.gpu_memory import gpu_startup_lock
 from sglang_omni.utils.imports import import_string
 from sglang_omni.utils.ipc_weights import prepare_weight_share_process_compat
+from sglang_omni.utils.logging import configure_dependency_loggers
 
 logger = logging.getLogger(__name__)
 
@@ -491,8 +492,13 @@ def stage_process_main(
     # importing sglang already installs a root handler at INFO, which turns
     # basicConfig into a no-op. Set the level explicitly so the stage follows
     # the launcher's --log-level.
-    logging.basicConfig(level=spec.log_level, stream=sys.stdout)
+    logging.basicConfig(
+        level=spec.log_level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        stream=sys.stdout,
+    )
     logging.getLogger().setLevel(spec.log_level)
+    configure_dependency_loggers()
     if not spec.stage_specs:
         raise ValueError(f"Process {spec.process_name!r} requires at least one stage")
     else:
@@ -507,7 +513,7 @@ def stage_process_main(
         run_process(spec, ready_event, log)
     except (KeyboardInterrupt, SystemExit):
         destroy_torch_distributed_process_group(log)
-        reclaim_process_cuda_memory(
+        reclaim_process_gpu_memory(
             stage_gpu_ids(spec.stage_specs),
             log,
             reason=f"stage process {spec.process_name} terminated during startup",
@@ -523,7 +529,7 @@ def stage_process_main(
             traceback.clear_frames(exc.__traceback__)
         log.error("Stage process %s failed\n%s", spec.process_name, traceback_text)
         destroy_torch_distributed_process_group(log)
-        reclaim_process_cuda_memory(
+        reclaim_process_gpu_memory(
             stage_gpu_ids(spec.stage_specs),
             log,
             reason=f"stage process {spec.process_name} exit after failure",
@@ -658,7 +664,7 @@ def destroy_torch_distributed_process_group(log: logging.Logger) -> None:
         )
 
 
-def reclaim_process_cuda_memory(
+def reclaim_process_gpu_memory(
     gpu_ids: Iterable[int],
     log: logging.Logger,
     *,
@@ -673,42 +679,35 @@ def reclaim_process_cuda_memory(
     try:
         import torch
 
-        if not torch.cuda.is_available():
+        if current_platform.is_cpu():
             return
         else:
             pass
-        log.warning(
-            "Reclaiming CUDA memory after %s on gpu_ids=%s",
-            reason,
-            gpu_id_list,
-        )
+        log.warning(f"Reclaiming GPU memory after {reason} on gpu_ids={gpu_id_list}")
         for gpu_id in gpu_id_list:
             try:
-                torch.cuda.set_device(int(gpu_id))
+                current_platform.set_device(current_platform.get_device(int(gpu_id)))
                 with suppress(Exception):
-                    torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-                with suppress(Exception):
-                    torch.cuda.ipc_collect()
+                    current_platform.synchronize()
+                current_platform.empty_cache()
+                if current_platform.is_cuda_alike():
+                    with suppress(Exception):
+                        torch.cuda.ipc_collect()
+                else:
+                    pass
             except Exception as exc:
                 log.warning(
-                    "CUDA memory reclaim failed for gpu_id=%s after %s: %s",
-                    gpu_id,
-                    reason,
-                    exc,
+                    f"GPU memory reclaim failed for gpu_id={gpu_id} after "
+                    f"{reason}: {exc}",
                     exc_info=True,
                 )
         gc.collect()
         log.warning(
-            "CUDA memory reclaim complete after %s on gpu_ids=%s",
-            reason,
-            gpu_id_list,
+            f"GPU memory reclaim complete after {reason} on gpu_ids={gpu_id_list}"
         )
     except Exception as exc:
         log.warning(
-            "CUDA memory reclaim skipped after %s: %s",
-            reason,
-            exc,
+            f"GPU memory reclaim skipped after {reason}: {exc}",
             exc_info=True,
         )
 

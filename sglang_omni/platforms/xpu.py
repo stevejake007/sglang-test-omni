@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import torch
 from sglang.srt.arg_groups.model_override_base import resolved_view
-from sglang.srt.platforms.device_mixin import PlatformEnum
+from sglang.srt.platforms.xpu import XpuDeviceMixin
 
 from sglang_omni.platforms.interface import JointRopeInplaceKernel, OmniPlatform
 
@@ -24,14 +24,7 @@ else:
     pass
 
 
-class XPUOmniPlatform(OmniPlatform):
-    _enum: PlatformEnum = PlatformEnum.XPU
-    device_name: str = "xpu"
-    device_type: str = "xpu"
-
-    def get_device(self, local_rank: int) -> "torch.device":
-        return torch.device("xpu", local_rank)
-
+class XPUOmniPlatform(XpuDeviceMixin, OmniPlatform):
     def set_device(self, device: "torch.device | int") -> None:
         index = device.index if isinstance(device, torch.device) else int(device)
         torch.xpu.set_device(0 if index is None else index)
@@ -57,6 +50,9 @@ class XPUOmniPlatform(OmniPlatform):
 
     def enable_talker_graph(self) -> bool:
         return True
+
+    def enable_tts_vocoder_fast_path(self) -> bool:
+        return False
 
     def enable_thinker_decode_graph(self) -> bool:
         # Capture leaves the scheduler thread's stream recording; host reads fail.
@@ -95,6 +91,11 @@ class XPUOmniPlatform(OmniPlatform):
         return (SDPBackend.FLASH_ATTENTION, SDPBackend.MATH)
 
     def supports_graph_captured_fft(self) -> bool:
+        return False
+
+    def supports_graph_captured_host_read(self) -> bool:
+        # Note (siju): a host read inside a capture raises on XPU, which is what
+        # the Mimi encoder's mask helper does.
         return False
 
     def apply_model_worker_backend_policy(

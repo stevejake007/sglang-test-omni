@@ -14,6 +14,7 @@ from sglang.srt.layers.logits_processor import LogitsProcessorOutput
 from sglang.srt.model_executor.runner_utils.capture_mode import get_is_capture_mode
 from sglang.srt.model_loader.weight_utils import default_weight_loader
 from sglang.srt.runtime_context import get_context, get_schedule
+from sglang.srt.sampling.penaltylib.repetition_penalty import apply_scaling_penalties
 from sglang.srt.sampling.sampling_batch_info import SamplingBatchInfo
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.utils import add_prefix
@@ -37,12 +38,14 @@ from sglang_omni.sampling.seed import (
 )
 from sglang_omni.utils.predictor_layers import (
     add_rmsnorm_rounded,
+    codebook_step,
     resolve_fused_predictor_layers,
     supports_exact_add_rmsnorm,
 )
 from sglang_omni.vendor.sglang.core import ForwardBatch
 from sglang_omni.vendor.sglang.distributed import tensor_model_parallel_all_reduce
 from sglang_omni.vendor.sglang.layers import (
+    AuxHiddenStateList,
     MergedColumnParallelLinear,
     MRotaryEmbedding,
     QuantizationConfig,
@@ -50,6 +53,7 @@ from sglang_omni.vendor.sglang.layers import (
     RMSNorm,
     RowParallelLinear,
     SiluAndMul,
+    residual_batch,
     should_use_flashinfer_cutlass_moe_fp4_allgather,
 )
 from sglang_omni.vendor.sglang.models import FusedSetKVBufferArg, apply_qk_norm
@@ -463,9 +467,9 @@ class Qwen3OmniMoeTalkerTextModel(nn.Module):
         else:
             hidden_states = input_embeds
 
-        residual = None
+        residual_batch.start(forward_batch)
         capture_layers = set(self.layers_to_capture or [])
-        aux_hidden_states = []
+        aux_hidden_states = AuxHiddenStateList()
 
         # Match the hidden-capture contract used by the compare tooling:
         # layer 0 is the embedding output (input to the first transformer layer).
@@ -476,21 +480,18 @@ class Qwen3OmniMoeTalkerTextModel(nn.Module):
 
         for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
-            hidden_states, residual = layer(
+            hidden_states = layer(
                 positions=positions,
                 hidden_states=hidden_states,
                 forward_batch=forward_batch,
-                residual=residual,
                 captured_last_layer_outputs=(
                     aux_hidden_states if i in capture_layers and i != 0 else None
                 ),
             )
 
+        hidden_states = residual_batch.complete_output(hidden_states, forward_batch)
         if hidden_states.shape[0] != 0:
-            if residual is None:
-                hidden_states = self.norm(hidden_states)
-            else:
-                hidden_states, _ = self.norm(hidden_states, residual)
+            hidden_states = residual_batch.norm(hidden_states, forward_batch, self.norm)
         else:
             pass
 
@@ -1709,13 +1710,26 @@ class Qwen3OmniTalker(nn.Module):
 
             for layer_idx in range(num_groups - 1):
                 logits, _ = self.code_predictor.lm_head[layer_idx](last_hidden)
-                next_code = self.sample_code_predictor_token(logits)
-                pos_codes[:, layer_idx + 1].copy_(next_code[:, 0])
-
-                new_embed = self.code_predictor.model.codec_embedding[layer_idx](
-                    next_code
-                ).to(dtype=predictor_input.dtype)
-                pos_summed.add_(new_embed[:, 0, :])
+                codebook_embedding = self.code_predictor.model.codec_embedding[
+                    layer_idx
+                ]
+                # note (ratish): the codebook step runs where the fused layers do, on CUDA
+                # with Triton; the checkpoint's bf16 tables are 2048 by 1024, the
+                # power-of-two widths it needs.
+                if self.predictor_fused_layers is not None:
+                    new_embed = codebook_step(
+                        logits[:, -1, :],
+                        codebook_embedding.weight,
+                        pos_codes[:, layer_idx + 1],
+                        pos_summed,
+                    )
+                else:
+                    next_code = self.sample_code_predictor_token(logits)
+                    pos_codes[:, layer_idx + 1].copy_(next_code[:, 0])
+                    new_embed = codebook_embedding(next_code).to(
+                        dtype=predictor_input.dtype
+                    )
+                    pos_summed.add_(new_embed[:, 0, :])
                 if layer_idx < num_groups - 2:
                     last_hidden = self.predictor_forward_tokens(
                         token_embeds=new_embed,
@@ -1913,6 +1927,27 @@ class Qwen3OmniTalker(nn.Module):
             talker_hidden=talker_hidden,
         )
         return result_codes, summed_embeddings
+
+    @torch.no_grad()
+    def precompile_kernels_after_loading(self) -> None:
+        """Compile the repetition penalty a request's first sample would compile: one row
+        and several rows are two graphs, as a dimension of 1 specializes."""
+        activations = self.model.codec_embedding.weight
+        for rows in (1, 2):
+            apply_scaling_penalties(
+                torch.zeros(
+                    rows,
+                    self.config.text_config.vocab_size,
+                    device=activations.device,
+                    dtype=activations.dtype,
+                ),
+                torch.ones(
+                    rows,
+                    self.config.text_config.vocab_size,
+                    device=activations.device,
+                    dtype=torch.float32,
+                ),
+            )
 
     def load_weights(self, weights: Iterable[Tuple[str, torch.Tensor]]) -> None:
         """Load weights from HuggingFace checkpoint."""
