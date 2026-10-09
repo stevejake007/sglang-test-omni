@@ -2,9 +2,9 @@
 """StagePayload <-> SGLang request adapters for ARK-ASR-3B.
 
 Mirrors the checkpoint's processor: mel features via WhisperFeatureExtractor,
-prompt = ``<|user|>...<|begin_of_audio|>{N audio tokens}<|end_of_audio|>
-Please transcribe this audio.<|assistant|>``, then the ``<|audio|>`` (id
-151663) placeholders are scattered with encoder output by the model's
+prompt = <|user|>...<|begin_of_audio|>{N audio tokens}<|end_of_audio|>
+Please transcribe this audio.<|assistant|>, then the <|audio|> (id 151663)
+placeholders are scattered with encoder output by the model's
 general_mm_embed_routine. ARK's LM is a dense Qwen2 (1-D RoPE, no MRoPE).
 """
 
@@ -40,13 +40,13 @@ from .audio_lengths import arkasr_num_audio_tokens
 
 logger = logging.getLogger(__name__)
 
-_SAMPLE_RATE = 16000
-_AUDIO_TOKEN = "<|audio|>"
-_BOA = "<|begin_of_audio|>"
-_EOA = "<|end_of_audio|>"
-_USER = "<|user|>"
-_ASSISTANT = "<|assistant|>"
-_DEFAULT_INSTRUCTION = "Please transcribe this audio."
+SAMPLE_RATE = 16000
+AUDIO_TOKEN = "<|audio|>"
+BEGIN_OF_AUDIO = "<|begin_of_audio|>"
+END_OF_AUDIO = "<|end_of_audio|>"
+USER_TOKEN = "<|user|>"
+ASSISTANT_TOKEN = "<|assistant|>"
+DEFAULT_INSTRUCTION = "Please transcribe this audio."
 
 
 @dataclass
@@ -125,14 +125,14 @@ def make_arkasr_scheduler_adapters(
     vocab_size = len(tokenizer) if mlx_mode else int(tokenizer.vocab_size)
 
     # CUDA suppresses reserved markers during sampling; MLX filters decoded IDs.
-    _suppressed_ids = build_suppressed_token_ids(tokenizer)
+    suppressed_ids = build_suppressed_token_ids(tokenizer)
 
     def _build_prompt_ids(num_audio_tokens: int) -> list[int]:
         prompt = (
-            f"{_USER}"
-            f"{_BOA}{_AUDIO_TOKEN * num_audio_tokens}{_EOA}"
-            f"{_DEFAULT_INSTRUCTION}"
-            f"{_ASSISTANT}"
+            f"{USER_TOKEN}"
+            f"{BEGIN_OF_AUDIO}{AUDIO_TOKEN * num_audio_tokens}{END_OF_AUDIO}"
+            f"{DEFAULT_INSTRUCTION}"
+            f"{ASSISTANT_TOKEN}"
         )
         return list(tokenizer(prompt, add_special_tokens=False).input_ids)
 
@@ -148,7 +148,7 @@ def make_arkasr_scheduler_adapters(
         else:
             pass
         prepared = prepare_audio(
-            payload, source_name="ARK-ASR", target_sample_rate=_SAMPLE_RATE
+            payload, source_name="ARK-ASR", target_sample_rate=SAMPLE_RATE
         )
         audio = prepared.waveform
         audio_duration_s = prepared.duration_s
@@ -159,14 +159,14 @@ def make_arkasr_scheduler_adapters(
         # then merge_factor determines the audio-token count.
         extracted = feature_extractor(
             audio,
-            sampling_rate=_SAMPLE_RATE,
+            sampling_rate=SAMPLE_RATE,
             return_tensors="pt",
             return_attention_mask=True,
             padding="longest",
             truncation=True,
         )
         features = extracted.input_features  # [num_mel_bins, T]
-        feature_attention_mask = getattr(extracted, "attention_mask", None)
+        feature_attention_mask = extracted.attention_mask
         if feature_attention_mask is None:
             feature_attention_mask = torch.ones(
                 (features.shape[0], features.shape[-1]), dtype=torch.long
@@ -225,8 +225,8 @@ def make_arkasr_scheduler_adapters(
             top_p=1.0,
             stop_token_ids=[eos_token_id],
             logit_bias=(
-                {str(tid): -100.0 for tid in _suppressed_ids}
-                if _suppressed_ids and not mlx_mode
+                {str(tid): -100.0 for tid in suppressed_ids}
+                if suppressed_ids and not mlx_mode
                 else None
             ),
         )
@@ -267,9 +267,9 @@ def make_arkasr_scheduler_adapters(
         payload = data.stage_payload
         output_ids = list(data.output_ids or [])
         # CUDA uses sampling bias; MLX relies on this marker-token filter.
-        if _suppressed_ids:
-            _drop = set(_suppressed_ids)
-            output_ids = [t for t in output_ids if t not in _drop]
+        if suppressed_ids:
+            drop = set(suppressed_ids)
+            output_ids = [t for t in output_ids if t not in drop]
         else:
             pass
         text = decode_token_ids(tokenizer, output_ids, skip_special_tokens=True).strip()
@@ -300,7 +300,7 @@ def make_arkasr_stream_output_builder(
     [str, SGLangARRequestData, RequestOutput | SimpleNamespace],
     list[OutgoingMessage],
 ]:
-    tokenizer_eos = getattr(tokenizer, "eos_token_id", None)
+    tokenizer_eos = tokenizer.eos_token_id
     resolved_eos = (
         eos_token_id
         if eos_token_id is not None
