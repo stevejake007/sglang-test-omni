@@ -1,19 +1,47 @@
+.. raw:: html
+
+   <div class="sg-hero">
+     <span class="sg-badge">SGLang-Omni</span>
+     <div class="sg-hero-title">High-Performance Serving for Omni &amp; Multimodal Models</div>
+     <p class="sg-hero-sub">A high-performance serving framework for omni and multimodal models, built on top of SGLang. It is designed to orchestrate multi-stage pipelines with low latency and OpenAI-compatible APIs.</p>
+     <div class="sg-hero-actions">
+       <a class="sg-btn sg-btn-primary" href="get_started/installation.html">Get Started</a>
+       <a class="sg-btn sg-btn-ghost" href="https://github.com/sgl-project/sglang-omni" target="_blank" rel="noopener">GitHub</a>
+     </div>
+   </div>
+
 SGLang-Omni
 =======================
-
-SGLang-Omni is a high-performance serving framework for omni and multimodal models, built on top of `SGLang <https://github.com/sgl-project/sglang>`_. It is designed to orchestrate multi-stage pipelines with low latency and OpenAI-compatible APIs.
 
 Modern omni models — such as speech-output LLMs and multimodal generation systems — decompose into heterogeneous stages with fundamentally different computational profiles: a compute-bound thinker, a memory-bound talker, a latency-sensitive codec. SGLang-Omni is built around a **computation-centric design**: each stage runs its own independent scheduler tuned to its bottleneck, communicates through a shared inbox/outbox abstraction, and transfers tensors via zero-copy shared memory. This prevents any single stage from degrading the others and allows new models to plug into the framework by declaring a pipeline topology rather than building an inference system from scratch.
 
 About
 -----
 
-Core features:
+.. raw:: html
 
-- **Multi-Stage Pipeline**: Flexible framework for orchestrating preprocessing, AR engine, codec, and vocoder stages across processes and GPUs.
-- **Native SGLang Integration**: Leverages SGLang's RadixAttention, continuous batching, and CUDA Graph optimizations for the AR backbone.
-- **OpenAI-Compatible Server**: Drop-in ``/v1/audio/speech``, ``/v1/audio/transcriptions``, ``/v1/audio/translations``, and ``/v1/chat/completions`` endpoints with real-time streaming support.
-- **Broad Model Support**: TTS (Higgs, Fish S2-Pro, Voxtral, Qwen3-TTS, MOSS-TTS / Local, Ming-Omni-TTS, dots.tts, ZONOS2), Music (MiniMax Music 3), ASR (Qwen3-ASR, Fun-ASR, ARK-ASR, Nemotron 3.5 ASR, Whisper, MOSS-Transcribe-Diarize), Omni (Qwen3-Omni, MiniCPM-o, Ming-Omni), and LLaDA2.0-Uni.
+   <div class="sg-card-grid">
+     <div class="sg-card">
+       <span class="sg-card-tag">01</span>
+       <h3>Multi-Stage Pipeline</h3>
+       <p>Flexible framework for orchestrating preprocessing, AR engine, codec, and vocoder stages across processes and GPUs.</p>
+     </div>
+     <div class="sg-card">
+       <span class="sg-card-tag">02</span>
+       <h3>Native SGLang Integration</h3>
+       <p>Leverages SGLang's RadixAttention, continuous batching, and CUDA Graph optimizations for the AR backbone.</p>
+     </div>
+     <div class="sg-card">
+       <span class="sg-card-tag">03</span>
+       <h3>OpenAI-Compatible Server</h3>
+       <p>Drop-in <code>/v1/audio/speech</code>, <code>/v1/audio/transcriptions</code>, <code>/v1/audio/translations</code>, and <code>/v1/chat/completions</code> endpoints with real-time streaming support.</p>
+     </div>
+     <div class="sg-card">
+       <span class="sg-card-tag">04</span>
+       <h3>Broad Model Support</h3>
+       <p>TTS (Higgs, Fish S2-Pro, Voxtral, Qwen3-TTS, MOSS-TTS / Local, Ming-Omni-TTS, dots.tts, ZONOS2), Music (MiniMax Music 3), ASR (Qwen3-ASR, Fun-ASR, ARK-ASR, Nemotron 3.5 ASR, Whisper, MOSS-Transcribe-Diarize), Omni (Qwen3-Omni, MiniCPM-o, Ming-Omni), and LLaDA2.0-Uni.</p>
+     </div>
+   </div>
 
 Supported Models
 ----------------
