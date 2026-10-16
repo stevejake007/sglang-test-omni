@@ -95,3 +95,10 @@ repos:
         types: [python]
         files: ^sglang_omni/
         exclude: ^sglang_omni/vendor/
+      # Enforce docs heading hierarchy: exactly one H1 per page, no H4+.
+      - id: docs-heading-hierarchy
+        name: docs heading hierarchy (one H1, max H3)
+        entry: python3 scripts/check_docs_headings.py
+        language: system
+        types: [markdown]
+        files: ^docs/.*\.md$
