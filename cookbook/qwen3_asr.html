@@ -255,7 +255,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../developer_reference/main.html">Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../developer_reference/apiserver_design.html">API Server Design</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../developer_reference/pipeline.html">Pipeline Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../developer_reference/pipeline.html">Pipeline</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../developer_reference/config.html">Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../developer_reference/adding_parameters.html">Adding a Parameter</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../developer_reference/communication.html">Communication</a></li>
@@ -504,11 +504,7 @@
                 <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#apple-silicon-mlx-mlp">🍎 Apple Silicon (MLX/MLP)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">🍎 Apple Silicon (MLX/MLP)</a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlx">MLX</a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#torch-mps">Torch/MPS</a></li>
-</ul>
-</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">🍎 Apple Silicon (MLX/MLP)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#server-configuration">Server Configuration</a></li>
@@ -560,8 +556,7 @@
 </section>
 <section id="id1">
 <h3>🍎 Apple Silicon (MLX/MLP)<a class="headerlink" href="#id1" title="Link to this heading">#</a></h3>
-<section id="mlx">
-<h4>MLX<a class="headerlink" href="#mlx" title="Link to this heading">#</a></h4>
+<p><strong>MLX</strong></p>
 <p>The Apple Silicon path requires macOS 14 or newer, Python 3.12, Homebrew, and
 SGLang’s MLX runtime. Audio decoding also requires Homebrew’s versioned FFmpeg 7 formula:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew<span class="w"> </span>install<span class="w"> </span>ffmpeg@7
@@ -623,9 +618,7 @@ HTTP and SSE transcription interfaces below are the same as on CUDA;
 The Apple paths do not provide sampling penalties or token logprobs yet. MLX
 can batch multiple requests, but <code class="docutils literal notranslate"><span class="pre">max_running_requests=1</span></code> is recommended when
 single-request latency matters; increase it only when throughput is preferred.</p>
-</section>
-<section id="torch-mps">
-<h4>Torch/MPS<a class="headerlink" href="#torch-mps" title="Link to this heading">#</a></h4>
+<p><strong>Torch/MPS</strong></p>
 <p>To use the Torch MPS compatibility path instead, leave <code class="docutils literal notranslate"><span class="pre">SGLANG_USE_MLX</span></code> unset
 and pass an official PyTorch Qwen3-ASR checkpoint. It currently uses one device,
 greedy decoding, and the eager <code class="docutils literal notranslate"><span class="pre">torch_native</span></code>/<code class="docutils literal notranslate"><span class="pre">sdpa</span></code> profile:</p>
@@ -642,7 +635,6 @@ sgl-omni<span class="w"> </span>serve<span class="w"> </span><span class="se">\<
 default), and caps native/whole-upload requests at 60 seconds. Values above
 that qualified limit are rejected. Use the MLX path for long audio and the
 larger native context limit.</p>
-</section>
 </section>
 </section>
 <section id="server-configuration">
@@ -1210,11 +1202,7 @@ native and whole-upload requests at 60 seconds.</p></li>
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#apple-silicon-mlx-mlp">🍎 Apple Silicon (MLX/MLP)</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">🍎 Apple Silicon (MLX/MLP)</a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mlx">MLX</a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#torch-mps">Torch/MPS</a></li>
-</ul>
-</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">🍎 Apple Silicon (MLX/MLP)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#server-configuration">Server Configuration</a></li>

@@ -24,7 +24,7 @@ MODEL_PATH="$(
 
 ### 🍎 Apple Silicon (MLX/MLP)
 
-#### MLX
+**MLX**
 
 The Apple Silicon path requires macOS 14 or newer, Python 3.12, Homebrew, and
 SGLang's MLX runtime. Audio decoding also requires Homebrew's versioned FFmpeg 7 formula:
@@ -98,7 +98,7 @@ The Apple paths do not provide sampling penalties or token logprobs yet. MLX
 can batch multiple requests, but `max_running_requests=1` is recommended when
 single-request latency matters; increase it only when throughput is preferred.
 
-#### Torch/MPS
+**Torch/MPS**
 
 To use the Torch MPS compatibility path instead, leave `SGLANG_USE_MLX` unset
 and pass an official PyTorch Qwen3-ASR checkpoint. It currently uses one device,
