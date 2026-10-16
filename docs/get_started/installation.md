@@ -16,6 +16,8 @@ source installer below.
 
 ## 🐳 Option A: Docker (recommended)
 
+#### This is a bad H4 heading (test)
+
 **1. Pull the image**
 
 ```bash
