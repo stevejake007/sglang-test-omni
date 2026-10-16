@@ -1,47 +1,19 @@
-.. raw:: html
-
-   <div class="sg-hero">
-     <span class="sg-badge">SGLang-Omni</span>
-     <div class="sg-hero-title">High-Performance Serving for Omni &amp; Multimodal Models</div>
-     <p class="sg-hero-sub">A high-performance serving framework for omni and multimodal models, built on top of SGLang. It is designed to orchestrate multi-stage pipelines with low latency and OpenAI-compatible APIs.</p>
-     <div class="sg-hero-actions">
-       <a class="sg-btn sg-btn-primary" href="get_started/installation.html">Get Started</a>
-       <a class="sg-btn sg-btn-ghost" href="https://github.com/sgl-project/sglang-omni" target="_blank" rel="noopener">GitHub</a>
-     </div>
-   </div>
-
 SGLang-Omni
 =======================
+
+SGLang-Omni is a high-performance serving framework for omni and multimodal models, built on top of `SGLang <https://github.com/sgl-project/sglang>`_. It is designed to orchestrate multi-stage pipelines with low latency and OpenAI-compatible APIs.
 
 Modern omni models — such as speech-output LLMs and multimodal generation systems — decompose into heterogeneous stages with fundamentally different computational profiles: a compute-bound thinker, a memory-bound talker, a latency-sensitive codec. SGLang-Omni is built around a **computation-centric design**: each stage runs its own independent scheduler tuned to its bottleneck, communicates through a shared inbox/outbox abstraction, and transfers tensors via zero-copy shared memory. This prevents any single stage from degrading the others and allows new models to plug into the framework by declaring a pipeline topology rather than building an inference system from scratch.
 
 About
 -----
 
-.. raw:: html
+Core features:
 
-   <div class="sg-card-grid">
-     <div class="sg-card">
-       <span class="sg-card-tag">01</span>
-       <h3>Multi-Stage Pipeline</h3>
-       <p>Flexible framework for orchestrating preprocessing, AR engine, codec, and vocoder stages across processes and GPUs.</p>
-     </div>
-     <div class="sg-card">
-       <span class="sg-card-tag">02</span>
-       <h3>Native SGLang Integration</h3>
-       <p>Leverages SGLang's RadixAttention, continuous batching, and CUDA Graph optimizations for the AR backbone.</p>
-     </div>
-     <div class="sg-card">
-       <span class="sg-card-tag">03</span>
-       <h3>OpenAI-Compatible Server</h3>
-       <p>Drop-in <code>/v1/audio/speech</code>, <code>/v1/audio/transcriptions</code>, <code>/v1/audio/translations</code>, and <code>/v1/chat/completions</code> endpoints with real-time streaming support.</p>
-     </div>
-     <div class="sg-card">
-       <span class="sg-card-tag">04</span>
-       <h3>Broad Model Support</h3>
-       <p>TTS (Higgs, Fish S2-Pro, Voxtral, Qwen3-TTS, MOSS-TTS / Local, Ming-Omni-TTS, dots.tts, ZONOS2), Music (MiniMax Music 3), ASR (Qwen3-ASR, Fun-ASR, ARK-ASR, Nemotron 3.5 ASR, Whisper, MOSS-Transcribe-Diarize), Omni (Qwen3-Omni, MiniCPM-o, Ming-Omni), and LLaDA2.0-Uni.</p>
-     </div>
-   </div>
+- **Multi-Stage Pipeline**: Flexible framework for orchestrating preprocessing, AR engine, codec, and vocoder stages across processes and GPUs.
+- **Native SGLang Integration**: Leverages SGLang's RadixAttention, continuous batching, and CUDA Graph optimizations for the AR backbone.
+- **OpenAI-Compatible Server**: Drop-in ``/v1/audio/speech``, ``/v1/audio/transcriptions``, ``/v1/audio/translations``, and ``/v1/chat/completions`` endpoints with real-time streaming support.
+- **Broad Model Support**: TTS (Higgs, Fish S2-Pro, Voxtral, Qwen3-TTS, MOSS-TTS / Local, Ming-Omni-TTS, dots.tts, ZONOS2), Music (MiniMax Music 3), ASR (Qwen3-ASR, Fun-ASR, ARK-ASR, Nemotron 3.5 ASR, Whisper, MOSS-Transcribe-Diarize), Omni (Qwen3-Omni, MiniCPM-o, Ming-Omni), and LLaDA2.0-Uni.
 
 Supported Models
 ----------------
@@ -98,6 +70,9 @@ Supported Models
    * - `OpenMOSS-Team/MOSS-Transcribe-Diarize <https://huggingface.co/OpenMOSS-Team/MOSS-Transcribe-Diarize>`_
      - ASR
      - Multi-speaker transcription + diarization + timestamps
+   * - `nvidia/Nemotron-3-Diarization <https://huggingface.co/nvidia/Nemotron-3-Diarization>`_
+     - Diarization
+     - Up to eight overlapping speakers for uploads and live audio (see `cookbook <cookbook/nemotron_diarization.html>`_)
    * - `openai/whisper-large-v3 <https://huggingface.co/openai/whisper-large-v3>`_
      - ASR
      - Experimental transcription and speech-to-English translation routes; see the `audio translation support matrix <basic_usage/audio_translations.html>`_
@@ -130,21 +105,14 @@ Supported Models
    :maxdepth: 1
    :caption: Cookbook
 
-   cookbook/qwen3_tts.md
-   cookbook/moss_tts.md
-   cookbook/whisper_asr.md
-   cookbook/nemotron3_5_asr.md
-   cookbook/moss_transcribe_diarize.md
-   cookbook/fishaudio_s2_pro.md
-   cookbook/qwen3_omni.md
-   cookbook/fun_cosyvoice3.md
-   cookbook/personaplex.md
-   cookbook/minicpm_o.md
-   cookbook/llada2_uni.md
    cookbook/higgs_tts.md
+   cookbook/nemotron_diarization.md
    cookbook/voxtral_tts.md
+   cookbook/fishaudio_s2_pro.md
    cookbook/fishaudio_drama3.md
+   cookbook/qwen3_tts.md
    cookbook/ming_tts.md
+   cookbook/moss_tts.md
    cookbook/moss_tts_local.md
    cookbook/dots_tts.md
    cookbook/minimax_music3.md
@@ -152,8 +120,16 @@ Supported Models
    cookbook/qwen3_asr.md
    cookbook/fun_asr.md
    cookbook/arkasr.md
+   cookbook/nemotron3_5_asr.md
+   cookbook/moss_transcribe_diarize.md
+   cookbook/whisper_asr.md
+   cookbook/qwen3_omni.md
+   cookbook/minicpm_o.md
    cookbook/ming_omni.md
    cookbook/nemotron_voicechat.md
+   cookbook/personaplex.md
+   cookbook/llada2_uni.md
+   cookbook/fun_cosyvoice3.md
    cookbook/auk.md
 
 .. toctree::
@@ -184,9 +160,11 @@ Supported Models
    developer_reference/profiler.md
    developer_reference/qwen3_asr_concurrency_profile.md
    developer_reference/full_duplex_bench.md
+   developer_reference/full_duplex_metrics.md
    developer_reference/tts_bench.md
    developer_reference/asr_bench.md
    developer_reference/omni_offline_bench.md
    developer_reference/rl_admin_control.md
    developer_reference/mlx.md
+   developer_reference/ci_labels.md
    developer_reference/bump_version.md

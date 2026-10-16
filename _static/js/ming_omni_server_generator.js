@@ -1,8 +1,5 @@
 // Server command generator for Ming-flash-omni-2.0, mounting into
 // #sgl-ming-server-gen-mount. Sibling of qwen3_omni_server_generator.js.
-// Brand style: SGLang docs.sglang.io design system — primary #d55816,
-// warm white #fffcfb / deep charcoal #1d1d1d, Inter, 12px rounded cards
-// (see _static/css/custom_log.css).
 (function () {
   'use strict';
 
@@ -146,42 +143,37 @@
     function update() {
       dark = detectDark();
 
-      // ── SGLang brand tokens (docs.sglang.io design system) ──
-      var ACCENT     = '#d55816';                      // brand orange
-      var ACCENT_DEEP = dark ? '#f5b693' : '#a8470f';  // readable orange text
-      var cardBg     = dark ? '#262628' : '#ffffff';
-      var cardBorder = dark ? 'rgba(255,255,255,0.10)' : '#eee6df';
-      var titleColor = ACCENT_DEEP;
-      var btnBg      = dark ? '#2f2f31' : '#ffffff';
-      var btnBorder  = dark ? 'rgba(255,255,255,0.22)' : '#e2d6cc';
-      var btnColor   = dark ? '#e5e7eb' : '#4b4b4b';
-      var cmdBg      = dark ? '#101012' : '#fff7f1';
+      var ACCENT     = '#D45D44';
+      var cardBg     = dark ? '#1f2937' : '#fff';
+      var cardBorder = dark ? '#374151' : '#e5e7eb';
+      var titleColor = dark ? '#e5e7eb' : '#374151';
+      var btnBg      = dark ? '#374151' : '#fff';
+      var btnBorder  = dark ? '#9ca3af' : '#d1d5db';
+      var btnColor   = dark ? '#e5e7eb' : '#374151';
+      var cmdBg      = dark ? '#111827' : '#f5f5f5';
       var cmdColor   = dark ? '#e5e7eb' : '#374151';
-      var cardShadow = 'box-shadow:0 1px 2px rgba(29,29,29,0.04),0 4px 14px rgba(213,88,22,0.07);';
 
-      var containerS = 'max-width:900px;display:flex;flex-direction:column;gap:8px;'
-                     + 'font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;';
-      var cardS = 'padding:10px 14px;'
+      var containerS = 'max-width:900px;display:flex;flex-direction:column;gap:4px;'
+                     + 'font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;';
+      var cardS = 'padding:8px 12px;'
                 + 'border:1px solid ' + cardBorder + ';'
                 + 'border-left:3px solid ' + ACCENT + ';'
-                + 'border-radius:12px;'
+                + 'border-radius:4px;'
                 + 'display:flex;align-items:center;gap:12px;'
-                + 'background:' + cardBg + ';'
-                + cardShadow;
-      var titleS = 'font-size:13px;font-weight:600;min-width:150px;flex-shrink:0;color:' + titleColor + ';';
-      var itemsS = 'display:flex;row-gap:6px;column-gap:8px;flex-wrap:wrap;align-items:center;';
-      var subS   = 'display:block;font-size:10px;margin-top:2px;line-height:1.15;opacity:0.75;';
+                + 'background:' + cardBg + ';';
+      var titleS = 'font-size:13px;font-weight:600;min-width:140px;flex-shrink:0;color:' + titleColor + ';';
+      var itemsS = 'display:flex;row-gap:4px;column-gap:6px;flex-wrap:wrap;align-items:center;';
+      var subS   = 'display:block;font-size:9px;margin-top:1px;line-height:1.1;opacity:0.75;';
 
       function btnS(active) {
-        return 'padding:6px 14px;'
+        return 'padding:4px 12px;'
              + 'border:1px solid ' + (active ? ACCENT : btnBorder) + ';'
-             + 'border-radius:999px;cursor:pointer;'
+             + 'border-radius:3px;cursor:pointer;'
              + 'display:inline-flex;flex-direction:column;align-items:center;justify-content:center;'
-             + 'font-weight:600;font-size:13px;user-select:none;'
-             + 'min-width:64px;text-align:center;'
+             + 'font-weight:500;font-size:13px;user-select:none;'
+             + 'min-width:60px;text-align:center;'
              + 'background:' + (active ? ACCENT : btnBg) + ';'
-             + 'color:' + (active ? '#fff' : btnColor) + ';'
-             + 'box-shadow:' + (active ? '0 2px 10px rgba(213,88,22,0.28)' : 'none') + ';';
+             + 'color:' + (active ? '#fff' : btnColor) + ';';
       }
 
       function makeRow(title, items, activeId) {
@@ -190,7 +182,7 @@
           var isActive = it.id === activeId && !isDisabled;
           var sub = it.subtitle ? '<small style="' + subS + '">' + it.subtitle + '</small>' : '';
           var extra = isDisabled ? 'opacity:0.4;cursor:not-allowed;' : '';
-          return '<button class="sgl-gen-btn" data-dim="' + it.dim + '" data-val="' + it.id + '" '
+          return '<button data-dim="' + it.dim + '" data-val="' + it.id + '" '
                + (isDisabled ? 'data-disabled="1" ' : '')
                + 'style="' + btnS(isActive) + extra + '">' + it.label + sub + '</button>';
         }).join('');
@@ -240,25 +232,23 @@
       html += makeRow('Hardware', hwItems, ctx.hw);
 
       function badge(bg, fg, text) {
-        return '<span style="padding:3px 12px;border-radius:999px;font-size:0.8em;'
-             + 'font-weight:600;background:' + bg + ';color:' + fg + ';white-space:nowrap;'
-             + 'border:1px solid rgba(213,88,22,0.15);">'
+        return '<span style="padding:2px 10px;border-radius:10px;font-size:0.8em;'
+             + 'font-weight:500;background:' + bg + ';color:' + fg + ';white-space:nowrap;">'
              + text + '</span>';
       }
       html += '<div style="' + cardS + 'gap:8px;flex-wrap:wrap;">'
-            + badge('#fdeee4', '#a8470f', '&#128421;&#xFE0E; ' + p.totalGpus + ' GPU' + (p.totalGpus > 1 ? 's' : ''))
-            + badge('#f2efe9', '#555c66', '&#128266;&#xFE0E; ' + modeDef.audio)
-            + badge('#d55816', '#ffffff', '&#128190;&#xFE0E; ' + HARDWARE[ctx.hw].label + ' ' + HARDWARE[ctx.hw].subtitle)
+            + badge('#dbeafe', '#1e40af', '&#128421;&#xFE0E; ' + p.totalGpus + ' GPU' + (p.totalGpus > 1 ? 's' : ''))
+            + badge('#dcfce7', '#166534', '&#128266;&#xFE0E; ' + modeDef.audio)
+            + badge('#f3e8ff', '#6b21a8', '&#128190;&#xFE0E; ' + HARDWARE[ctx.hw].label + ' ' + HARDWARE[ctx.hw].subtitle)
             + '</div>';
 
-      var cmdPreS  = 'flex:1;padding:14px 18px;background:' + cmdBg + ';border-radius:12px;'
+      var cmdPreS  = 'flex:1;padding:12px 16px;background:' + cmdBg + ';border-radius:6px;'
                    + 'font-family:Menlo,Monaco,"Courier New",monospace;'
-                   + 'font-size:12px;line-height:1.7;color:' + cmdColor + ';'
+                   + 'font-size:12px;line-height:1.6;color:' + cmdColor + ';'
                    + 'white-space:pre;overflow-x:auto;margin:0;border:1px solid ' + cardBorder + ';';
-      var copyBtnS = 'padding:6px 14px;font-size:11px;width:72px;text-align:center;'
-                   + 'background:' + ACCENT + ';color:#fff;'
-                   + 'border:1px solid ' + ACCENT + ';border-radius:999px;cursor:pointer;flex-shrink:0;'
-                   + 'font-weight:600;';
+      var copyBtnS = 'padding:4px 10px;font-size:11px;width:64px;text-align:center;'
+                   + 'background:' + btnBg + ';color:' + btnColor + ';'
+                   + 'border:1px solid ' + btnBorder + ';border-radius:3px;cursor:pointer;flex-shrink:0;';
       html += '<div style="' + cardS + '">'
             + '<div style="' + titleS + '">Run this Command:</div>'
             + '<pre id="sgl-ming-cmd" style="' + cmdPreS + '">' + buildCommand(ctx) + '</pre>'
@@ -266,12 +256,12 @@
             + '</div>';
 
       var explanations = getExplanations(ctx);
-      var flagRowS = 'display:flex;flex-direction:column;gap:6px;flex:1;';
+      var flagRowS = 'display:flex;flex-direction:column;gap:4px;flex:1;';
       var flagLineS = 'display:flex;gap:12px;align-items:baseline;font-size:12px;';
       var flagNameS = 'font-family:Menlo,Monaco,"Courier New",monospace;'
-                    + 'color:' + ACCENT_DEEP + ';'
+                    + 'color:' + (dark ? '#a5b4fc' : '#4f46e5') + ';'
                     + 'white-space:nowrap;flex-shrink:0;min-width:220px;';
-      var flagDescS = 'color:' + (dark ? '#d8d8d8' : '#4b4b4b') + ';opacity:0.9;';
+      var flagDescS = 'color:' + titleColor + ';opacity:0.8;';
       var lines = explanations.map(function(e) {
         return '<div style="' + flagLineS + '">'
              + '<span style="' + flagNameS + '">' + e.flag + '</span>'

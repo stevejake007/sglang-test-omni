@@ -6,10 +6,7 @@ speech tokenizer. It supports zero-shot voice cloning, cross-lingual synthesis, 
 
 ## Prerequisites
 
-Install `sglang-omni` for your platform:
-
-- **NVIDIA CUDA / general** — [Installation](../get_started/installation.md)
-- **Apple Silicon** — [Installation — Apple Silicon](../get_started/installation_mps.md)
+Install `sglang-omni` from source as in [Installation](../get_started/installation.md).
 
 Fun-CosyVoice3 needs `sox` and a few extra Python packages. From the repository root, install the extra against **this checkout**:
 
@@ -50,11 +47,25 @@ sgl-omni serve \
   --port 8000
 ```
 
-## 🍎 Apple Silicon (MLX/MPS)
+## Apple Silicon
+
+On Apple Silicon, install the optional
+Fun-CosyVoice3 extra with the repository installer, then expose Homebrew's
+keg-only FFmpeg libraries to TorchCodec:
+
+```bash
+brew install sox
+SGLANG_OMNI_EXTRAS=fun-cosyvoice3 ./install.sh
+source .venv-apple/bin/activate
+export DYLD_LIBRARY_PATH="$(brew --prefix ffmpeg@7)/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+```
+
+Keep the official checkpoint as `--model-path`; it supplies the ONNX
+preprocessing assets. The MLX path additionally needs the converted speech
+model artifact, which contains the Qwen2, Flow, and HiFT weights. `mlx-audio`
+is not a runtime dependency.
 
 ### MLX
-
-Starts a CosyVoice3 TTS service with MLX backend
 
 ```bash
 SGLANG_USE_MLX=1 sgl-omni serve \
@@ -225,7 +236,7 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 | `temperature` | `0.7` | Sampling temperature |
 | `top_p` | `0.8` | Top-p sampling |
 | `top_k` | `20` | Top-k sampling |
-| `repetition_penalty` | `1.1` | Repetition penalty |
+| `repetition_penalty` | `1.21` | Repetition penalty |
 | `max_new_tokens` | `min(2048, 20x target text tokens)` | Maximum number of generated speech tokens. If omitted, derived from the target text length (capped at 2048); stop tokens are also suppressed until at least `2x` that length has been generated |
 | `seed` | `null` | Random seed for reproducibility |
 | `stream` | `false` | Incremental causal Flow + HiFT; first PCM chunk after `28 + prompt_pad` speech tokens (`prompt_pad` rounds the prompt length to a multiple of 25) |

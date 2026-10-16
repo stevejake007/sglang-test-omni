@@ -6,10 +6,7 @@ Qwen3-ASR does not support `/v1/audio/translations`; that endpoint returns HTTP 
 
 ## Prerequisites
 
-Install `sglang-omni` for your platform:
-
-- **NVIDIA CUDA / general** — [Installation](../get_started/installation.md)
-- **Apple Silicon** — [Installation — Apple Silicon](../get_started/installation_mps.md)
+Install `sglang-omni` by following [Installation](../get_started/installation.md), then download the model:
 
 ```bash
 MODEL_REVISION=7278e1e70fe206f11671096ffdd38061171dd6e5
@@ -20,11 +17,7 @@ MODEL_PATH="$(
 )"
 ```
 
-### 🍎 Apple Silicon (MLX/MLP)
-
-### 🍎 Apple Silicon (MLX/MLP)
-
-**MLX**
+### Apple Silicon (MLX)
 
 The Apple Silicon path requires macOS 14 or newer, Python 3.12, Homebrew, and
 SGLang's MLX runtime. Audio decoding also requires Homebrew's versioned FFmpeg 7 formula:
@@ -97,8 +90,6 @@ HTTP and SSE transcription interfaces below are the same as on CUDA;
 The Apple paths do not provide sampling penalties or token logprobs yet. MLX
 can batch multiple requests, but `max_running_requests=1` is recommended when
 single-request latency matters; increase it only when throughput is preferred.
-
-**Torch/MPS**
 
 To use the Torch MPS compatibility path instead, leave `SGLANG_USE_MLX` unset
 and pass an official PyTorch Qwen3-ASR checkpoint. It currently uses one device,

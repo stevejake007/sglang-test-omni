@@ -55,8 +55,6 @@ uv pip install --prerelease=allow "sglang-omni==0.1.8"
 
 <a id="macos-apple-silicon"></a>
 
-<a id="macos-apple-silicon"></a>
-
 ## 🍎 Option B: macOS Apple Silicon installer
 
 ```bash
