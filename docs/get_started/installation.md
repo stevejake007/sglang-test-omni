@@ -55,9 +55,13 @@ uv pip install --prerelease=allow "sglang-omni==0.1.8"
 
 <a id="macos-apple-silicon"></a>
 
+# This is a second H1 (test)
+
 <a id="macos-apple-silicon"></a>
 
 ## 🍎 Option B: macOS Apple Silicon installer
+
+# This is a third H1 (test)
 
 ```bash
 git clone https://github.com/sgl-project/sglang-omni.git && cd sglang-omni
