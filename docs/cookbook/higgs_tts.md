@@ -489,7 +489,7 @@ Reference output:
   <source src="../_static/audio/gaokao-listening.wav" type="audio/wav">
 </audio>
 
-#### Emotion
+**Emotion**
 
 | Token | Description |
 |---|---|
@@ -515,7 +515,7 @@ Reference output:
 | `<\|emotion:shame\|>` | Shame |
 | `<\|emotion:helplessness\|>` | Helplessness |
 
-#### Style
+**Style**
 
 | Token | Description |
 |---|---|
@@ -523,7 +523,7 @@ Reference output:
 | `<\|style:shouting\|>` | Shouting / projected voice |
 | `<\|style:whispering\|>` | Whisper |
 
-#### Sound Effects
+**Sound Effects**
 
 Pair each token with the matching onomatopoeia immediately after it.
 
@@ -539,7 +539,7 @@ Pair each token with the matching onomatopoeia immediately after it.
 | `<\|sfx:sniff\|>` | Sniff | Sff |
 | `<\|sfx:sneeze\|>` | Sneeze | Achoo |
 
-#### Prosody
+**Prosody**
 
 | Token | Effect |
 |---|---|
