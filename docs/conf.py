@@ -28,7 +28,15 @@ extensions = [
     "sphinxcontrib.mermaid",
     "nbsphinx",
     "sphinx.ext.mathjax",
+    "sphinx_reredirects",
 ]
+
+# Old page URLs that moved in the cookbook refactor keep working via
+# generated HTML meta-refresh redirects (sphinx-reredirects). The value is
+# relative to the old page's directory.
+redirects = {
+    "developer_reference/mlx": "../mlx/path.html",
+}
 
 nbsphinx_allow_errors = True
 nbsphinx_execute = "never"
