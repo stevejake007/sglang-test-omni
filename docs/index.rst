@@ -112,6 +112,7 @@ Supported Models
    cookbook/nemotron3_5_asr.md
    cookbook/moss_transcribe_diarize.md
    cookbook/fishaudio_s2_pro.md
+   cookbook/cosmos3_nano.md
    cookbook/qwen3_omni.md
    cookbook/fun_cosyvoice3.md
    cookbook/personaplex.md
