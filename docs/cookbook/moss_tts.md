@@ -162,8 +162,11 @@ URL, or a base64 **data URI** (`data:audio/wav;base64,<...>`, decoded with `soun
 
 ### Streaming
 
-Set `"stream": true` and `"response_format": "pcm"` to receive raw PCM audio
-chunks in real time.
+Streaming uses the same `/v1/audio/speech` contract as every other SGLang-Omni
+TTS model: set `"stream": true` with `"response_format": "pcm"` to receive raw
+PCM chunks in real time. The canonical curl and Python examples and the
+PCM/SSE/WebSocket contract live in
+[TTS Model Usage — Streaming](../basic_usage/tts.md#use-curl).
 
 ```bash
 curl -N -X POST http://localhost:8000/v1/audio/speech \

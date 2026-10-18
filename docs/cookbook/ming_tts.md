@@ -108,7 +108,14 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 ### Streaming
 
-Streaming returns headerless mono signed 16-bit little-endian PCM (`s16le`) at 44.1 kHz with
+Streaming uses the same `/v1/audio/speech` contract as every other SGLang-Omni
+TTS model: set `"stream": true` with `"response_format": "pcm"` to receive raw
+PCM chunks in real time. The canonical curl and Python examples and the
+PCM/SSE/WebSocket contract live in
+[TTS Model Usage — Streaming](../basic_usage/tts.md#use-curl).
+
+For Ming-Omni-TTS specifically, streaming returns headerless mono signed 16-bit
+little-endian PCM (`s16le`) at 44.1 kHz with
 `Content-Type: audio/pcm`. The `X-Sample-Rate`, `X-Channels`, and `X-Bit-Depth` headers report the
 sample rate, channel count, and bit depth; HTTP EOF ends the stream.
 

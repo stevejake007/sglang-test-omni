@@ -135,9 +135,14 @@ with open("output.wav", "wb") as f:
 
 ### Streaming
 
-Streaming lets you play audio while generation is still running, which cuts time-to-first-audio. dots.tts streams raw 48 kHz PCM: the AudioVAE decoder emits a waveform chunk every few latent patches instead of waiting for the whole utterance.
+Streaming uses the same `/v1/audio/speech` contract as every other SGLang-Omni
+TTS model: set `"stream": true` with `"response_format": "pcm"` to receive raw
+PCM chunks while generation is still running. The canonical curl and Python
+examples and the PCM/SSE/WebSocket contract live in
+[TTS Model Usage — Streaming](../basic_usage/tts.md#use-curl).
 
-Set `"stream": true` and `"response_format": "pcm"`:
+dots.tts streams raw 48 kHz PCM: the AudioVAE decoder emits a waveform chunk
+every few latent patches instead of waiting for the whole utterance.
 
 ```bash
 curl -N -X POST http://localhost:8000/v1/audio/speech \
@@ -156,7 +161,8 @@ curl -N -X POST http://localhost:8000/v1/audio/speech \
   --output output.pcm
 ```
 
-The `-N` flag disables curl's output buffering so chunks are written as they arrive. The response is 16-bit mono PCM at 48 kHz with no in-band JSON framing; convert it with:
+The response is 16-bit mono PCM at 48 kHz with no in-band JSON framing; convert
+it with:
 
 ```bash
 ffmpeg -f s16le -ar 48000 -ac 1 -i output.pcm output.wav

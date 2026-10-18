@@ -96,8 +96,11 @@ with open("output.wav", "wb") as f:
 
 ### Streaming
 
-Set `"stream": true` and `"response_format": "pcm"` to receive raw PCM audio
-chunks in real time:
+Streaming uses the same `/v1/audio/speech` contract as every other SGLang-Omni
+TTS model: set `"stream": true` with `"response_format": "pcm"` to receive raw
+PCM chunks in real time. The canonical curl and Python examples, the PCM/SSE and
+WebSocket options, and the response-header contract live in
+[TTS Model Usage — Streaming](../basic_usage/tts.md#use-curl).
 
 ```bash
 curl -N -X POST http://localhost:8000/v1/audio/speech \
@@ -111,10 +114,6 @@ curl -N -X POST http://localhost:8000/v1/audio/speech \
   }' \
   --output output.pcm
 ```
-
-Streaming returns `audio/pcm` 16-bit mono PCM bytes with sample-rate metadata in
-the response headers. See the [Higgs TTS cookbook](../cookbook/higgs_tts.md#streaming)
-for a full Python raw PCM consumer.
 
 ## Request Parameters
 
