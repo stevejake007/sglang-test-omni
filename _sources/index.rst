@@ -13,7 +13,7 @@ Core features:
 - **Multi-Stage Pipeline**: Flexible framework for orchestrating preprocessing, AR engine, codec, and vocoder stages across processes and GPUs.
 - **Native SGLang Integration**: Leverages SGLang's RadixAttention, continuous batching, and CUDA Graph optimizations for the AR backbone.
 - **OpenAI-Compatible Server**: Drop-in ``/v1/audio/speech``, ``/v1/audio/transcriptions``, ``/v1/audio/translations``, and ``/v1/chat/completions`` endpoints with real-time streaming support.
-- **Broad Model Support**: TTS (Higgs, Fish S2-Pro, Voxtral, Qwen3-TTS, MOSS-TTS / Local, Ming-Omni-TTS, dots.tts, ZONOS2), Music (MiniMax Music 3), ASR (Qwen3-ASR, Fun-ASR, ARK-ASR, Nemotron 3.5 ASR, Whisper, MOSS-Transcribe-Diarize), Omni (Qwen3-Omni, MiniCPM-o, Ming-Omni), and LLaDA2.0-Uni.
+- **Broad Model Support**: TTS (Higgs, Fish S2-Pro, Voxtral, Qwen3-TTS, MOSS-TTS / Local, Ming-Omni-TTS, Ming-3.0-TTS, dots.tts, ZONOS2), Music (MiniMax Music 3), ASR (Qwen3-ASR, Fun-ASR, ARK-ASR, Nemotron 3.5 ASR, Whisper, MOSS-Transcribe-Diarize, Ming-3.0-ASR), Omni (Qwen3-Omni, MiniCPM-o, Ming-Omni, Ming-3.0-audio), and LLaDA2.0-Uni.
 
 Supported Models
 ----------------
@@ -46,6 +46,9 @@ Supported Models
    * - `inclusionAI/Ming-omni-tts-16.8B-A3B <https://huggingface.co/inclusionAI/Ming-omni-tts-16.8B-A3B>`_
      - TTS
      - Text-to-speech and zero-shot voice cloning
+   * - `inclusionAI/Ming-3.0-tts-tiny <https://huggingface.co/inclusionAI/Ming-3.0-tts-tiny>`_
+     - TTS
+     - 44.1 kHz voice cloning from one reference recording
    * - `dots-studio/dots.tts-mf <https://huggingface.co/dots-studio/dots.tts-mf>`_
      - TTS
      - 48 kHz continuous-latent TTS; also ``dots.tts-soar`` / ``dots.tts-base``
@@ -58,6 +61,9 @@ Supported Models
    * - `Qwen/Qwen3-ASR-1.7B <https://huggingface.co/Qwen/Qwen3-ASR-1.7B>`_
      - ASR
      - Multilingual transcription with 30 language hints
+   * - `inclusionAI/Ming-3.0-asr-tiny <https://huggingface.co/inclusionAI/Ming-3.0-asr-tiny>`_
+     - ASR
+     - Chinese and English transcription
    * - `FunAudioLLM/Fun-ASR-Nano-2512-hf <https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512-hf>`_
      - ASR
      - Multilingual Fun-ASR-Nano
@@ -85,6 +91,9 @@ Supported Models
    * - `inclusionAI/Ming-flash-omni-2.0 <https://huggingface.co/inclusionAI/Ming-flash-omni-2.0>`_
      - Omni
      - Streaming TTS
+   * - `inclusionAI/Ming-3.0-audio-flash <https://huggingface.co/inclusionAI/Ming-3.0-audio-flash>`_
+     - Omni
+     - Transcription, audio chat, and 44.1 kHz speech
    * - `inclusionAI/LLaDA2.0-Uni <https://huggingface.co/inclusionAI/LLaDA2.0-Uni>`_
      - Multimodal
      - Text + image understanding and generation
@@ -106,33 +115,36 @@ Supported Models
    :maxdepth: 1
    :caption: Cookbook
 
-   cookbook/qwen3_tts.md
-   cookbook/moss_tts.md
-   cookbook/whisper_asr.md
-   cookbook/nemotron3_5_asr.md
-   cookbook/moss_transcribe_diarize.md
+   cookbook/higgs_tts.md
+   cookbook/nemotron_diarization.md
+   cookbook/voxtral_tts.md
    cookbook/fishaudio_s2_pro.md
-   cookbook/cosmos3_nano.md
-   cookbook/qwen3_omni.md
-   cookbook/fun_cosyvoice3.md
-   cookbook/personaplex.md
-   cookbook/minicpm_o.md
-   cookbook/llada2_uni.md
+   cookbook/fishaudio_drama3.md
+   cookbook/qwen3_tts.md
+   cookbook/ming_tts.md
+   cookbook/moss_tts.md
+   cookbook/moss_tts_local.md
+   cookbook/dots_tts.md
+   cookbook/minimax_music3.md
+   cookbook/zonos2.md
    cookbook/qwen3_asr.md
    cookbook/fun_asr.md
-   cookbook/higgs_tts.md
-   cookbook/moss_tts_local.md
-   cookbook/nemotron_diarization.md
-   cookbook/fishaudio_drama3.md
-   cookbook/minimax_music3.md
-   cookbook/ming_omni.md
-   cookbook/nemotron_voicechat.md
-   cookbook/auk.md
    cookbook/arkasr.md
-   cookbook/zonos2.md
-   cookbook/voxtral_tts.md
-   cookbook/dots_tts.md
-   cookbook/ming_tts.md
+   cookbook/nemotron3_5_asr.md
+   cookbook/moss_transcribe_diarize.md
+   cookbook/whisper_asr.md
+   cookbook/qwen3_omni.md
+   cookbook/minicpm_o.md
+   cookbook/ming_omni.md
+   cookbook/ming3_audio.md
+   cookbook/ming3_tts.md
+   cookbook/ming3_asr.md
+   cookbook/nemotron_voicechat.md
+   cookbook/personaplex.md
+   cookbook/llada2_uni.md
+   cookbook/fun_cosyvoice3.md
+   cookbook/auk.md
+   cookbook/cosmos3_nano.md
 
 .. toctree::
    :maxdepth: 1
