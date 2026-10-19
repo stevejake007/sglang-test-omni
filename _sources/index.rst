@@ -95,7 +95,6 @@ Supported Models
    :caption: Get Started
 
    get_started/installation.md
-   get_started/installation_apple_silicon.md
    get_started/installation_npu.md
    get_started/installation_xpu.md
    get_started/installation_cpu.md
@@ -107,33 +106,33 @@ Supported Models
    :maxdepth: 1
    :caption: Cookbook
 
-   cookbook/qwen3_tts.md
-   cookbook/moss_tts.md
-   cookbook/whisper_asr.md
-   cookbook/nemotron3_5_asr.md
-   cookbook/moss_transcribe_diarize.md
+   cookbook/higgs_tts.md
+   cookbook/nemotron_diarization.md
+   cookbook/voxtral_tts.md
    cookbook/fishaudio_s2_pro.md
-   cookbook/cosmos3_nano.md
-   cookbook/qwen3_omni.md
-   cookbook/fun_cosyvoice3.md
-   cookbook/personaplex.md
-   cookbook/minicpm_o.md
-   cookbook/llada2_uni.md
+   cookbook/fishaudio_drama3.md
+   cookbook/qwen3_tts.md
+   cookbook/ming_tts.md
+   cookbook/moss_tts.md
+   cookbook/moss_tts_local.md
+   cookbook/dots_tts.md
+   cookbook/minimax_music3.md
+   cookbook/zonos2.md
    cookbook/qwen3_asr.md
    cookbook/fun_asr.md
-   cookbook/higgs_tts.md
-   cookbook/moss_tts_local.md
-   cookbook/nemotron_diarization.md
-   cookbook/fishaudio_drama3.md
-   cookbook/minimax_music3.md
+   cookbook/arkasr.md
+   cookbook/nemotron3_5_asr.md
+   cookbook/moss_transcribe_diarize.md
+   cookbook/whisper_asr.md
+   cookbook/qwen3_omni.md
+   cookbook/minicpm_o.md
    cookbook/ming_omni.md
    cookbook/nemotron_voicechat.md
+   cookbook/personaplex.md
+   cookbook/llada2_uni.md
+   cookbook/fun_cosyvoice3.md
    cookbook/auk.md
-   cookbook/arkasr.md
-   cookbook/zonos2.md
-   cookbook/voxtral_tts.md
-   cookbook/dots_tts.md
-   cookbook/ming_tts.md
+   cookbook/cosmos3_nano.md
 
 .. toctree::
    :maxdepth: 1
@@ -170,12 +169,6 @@ Supported Models
    developer_reference/asr_bench.md
    developer_reference/omni_offline_bench.md
    developer_reference/rl_admin_control.md
+   developer_reference/mlx.md
    developer_reference/ci_labels.md
    developer_reference/bump_version.md
-
-
-.. toctree::
-   :maxdepth: 1
-   :caption: MLX
-
-   mlx/path.md
