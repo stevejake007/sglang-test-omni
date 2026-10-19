@@ -134,6 +134,7 @@ Supported Models
    cookbook/voxtral_tts.md
    cookbook/dots_tts.md
    cookbook/ming_tts.md
+   cookbook/whisper_turbo_asr.md
 
 .. toctree::
    :maxdepth: 1
