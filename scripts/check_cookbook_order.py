@@ -37,11 +37,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from cookbook_order_data import (
-    DOWNLOADS_DESC,
-    HF_REPO,
-    ROADMAP_ORDER,
-)
+from cookbook_order_data import DOWNLOADS_DESC, HF_REPO, ROADMAP_ORDER
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_FILE = REPO_ROOT / "scripts" / "cookbook_order_data.py"
@@ -120,7 +116,9 @@ def check_source(path: Path, source: str) -> list[Violation]:
         if entry in seen:
             lineno = lineno_by_entry.get(entry, 1)
             violations.append(
-                Violation(path, lineno, 1, "cookbook-order", f"duplicate entry '{entry}'")
+                Violation(
+                    path, lineno, 1, "cookbook-order", f"duplicate entry '{entry}'"
+                )
             )
         else:
             seen.add(entry)
@@ -232,7 +230,9 @@ def report_violations(violations: list[Violation]) -> int:
 
 
 def print_expected() -> int:
-    downloads_sorted = sorted(DOWNLOADS_DESC, key=DOWNLOADS_DESC.__getitem__, reverse=True)
+    downloads_sorted = sorted(
+        DOWNLOADS_DESC, key=DOWNLOADS_DESC.__getitem__, reverse=True
+    )
     for entry in ROADMAP_ORDER + downloads_sorted:
         print(entry)
     return 0
@@ -269,7 +269,12 @@ def refresh_downloads() -> int:
                 data = json.load(resp)
             new_counts[page] = int(data.get("downloads", 0))
             print(f"  {page}: {DOWNLOADS_DESC.get(page, 0):,} -> {new_counts[page]:,}")
-        except (urllib.error.URLError, urllib.error.HTTPError, ValueError, KeyError) as exc:
+        except (
+            urllib.error.URLError,
+            urllib.error.HTTPError,
+            ValueError,
+            KeyError,
+        ) as exc:
             failures.append(f"{page} ({repo}): {exc}")
     if not new_counts:
         print("refresh failed for every repo; data file unchanged", file=sys.stderr)
