@@ -112,4 +112,3 @@ repos:
         entry: python3 scripts/check_cookbook_order.py
         language: system
         files: ^docs/index\.rst$
-
