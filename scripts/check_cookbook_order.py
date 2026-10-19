@@ -2,17 +2,26 @@
 # SPDX-License-Identifier: Apache-2.0
 """Lint the Cookbook sidebar order in docs/index.rst. Checking does not rewrite files.
 
-The Cookbook toctree in docs/index.rst must list cookbook pages in the model
-order defined for PR #2876 (sgl-project/sglang-omni#2876), which mirrors the
-SGLang-Omni Roadmap #1081:
+The Cookbook toctree in docs/index.rst must follow the model order defined for
+PR #2876 (sgl-project/sglang-omni#2876), which mirrors the SGLang-Omni Roadmap
+#1081:
 
   1. Roadmap part: the models listed under **Focus -> Supporting** in #1081,
-     in that exact order (12 entries).
+     in that exact order (ROADMAP_ORDER below).
   2. Downloads part: every remaining cookbook entry, sorted by Hugging Face
-     download counts in descending order (15 entries).
+     download counts in descending order (DOWNLOADS_DESC below).
 
-Any missing, extra, duplicate, or misplaced entry is a violation and fails CI.
-There is no noqa exemption.
+New models are supported without touching the checking logic:
+
+  * A new model under the #1081 roadmap: insert it into ROADMAP_ORDER at its
+    roadmap position.
+  * Any other new model: add it to DOWNLOADS_DESC with its Hugging Face
+    download count and place the cookbook entry so that the downloads part
+    stays in descending order. The lint verifies that constraint directly, so
+    the exact insertion point is chosen by the download count, not hard-coded.
+
+Missing, extra, duplicate, unknown, or misplaced entries are violations and
+fail CI. There is no noqa exemption.
 
 Run without arguments to check docs/index.rst, or pass explicit paths.
 """
@@ -30,6 +39,8 @@ DEFAULT_TARGET = REPO_ROOT / "docs" / "index.rst"
 
 # Models listed under **Focus -> Supporting** in sgl-project/sglang-omni#1081,
 # in that exact order. Qwen3-TTS Base and CustomVoice share one cookbook page.
+# New roadmap models: insert here at their #1081 position; the cookbook toctree
+# must then list the same prefix in the same order.
 ROADMAP_ORDER = [
     "cookbook/qwen3_tts.md",
     "cookbook/moss_tts.md",
@@ -45,27 +56,32 @@ ROADMAP_ORDER = [
     "cookbook/llada2_uni.md",
 ]
 
-# Remaining cookbook entries, sorted by Hugging Face download counts in
-# descending order (queried October 2026).
-DOWNLOADS_ORDER = [
-    "cookbook/qwen3_asr.md",
-    "cookbook/fun_asr.md",
-    "cookbook/higgs_tts.md",
-    "cookbook/moss_tts_local.md",
-    "cookbook/nemotron_diarization.md",
-    "cookbook/minimax_music3.md",
-    "cookbook/fishaudio_drama3.md",
-    "cookbook/ming_omni.md",
-    "cookbook/nemotron_voicechat.md",
-    "cookbook/auk.md",
-    "cookbook/arkasr.md",
-    "cookbook/zonos2.md",
-    "cookbook/voxtral_tts.md",
-    "cookbook/dots_tts.md",
-    "cookbook/ming_tts.md",
-]
+# Hugging Face download counts (queried October 2026) for every cookbook entry
+# that is NOT part of the roadmap. The downloads part of the toctree must be
+# sorted by these counts in descending order. New non-roadmap models: add a
+# line here with the current download count and insert the cookbook entry at
+# the position the count implies.
+DOWNLOADS_DESC = {
+    "cookbook/qwen3_asr.md": 1_127_141,
+    "cookbook/fun_asr.md": 152_655,
+    "cookbook/higgs_tts.md": 123_139,
+    "cookbook/moss_tts_local.md": 114_752,
+    "cookbook/nemotron_diarization.md": 90_352,
+    "cookbook/minimax_music3.md": 6_224,
+    "cookbook/fishaudio_drama3.md": 6_158,
+    "cookbook/ming_omni.md": 5_114,
+    "cookbook/nemotron_voicechat.md": 4_659,
+    "cookbook/auk.md": 2_695,
+    "cookbook/arkasr.md": 2_608,
+    "cookbook/zonos2.md": 2_346,
+    "cookbook/voxtral_tts.md": 1_561,
+    "cookbook/dots_tts.md": 746,
+    "cookbook/ming_tts.md": 318,
+}
 
-EXPECTED_ORDER = ROADMAP_ORDER + DOWNLOADS_ORDER
+ROADMAP_SET = frozenset(ROADMAP_ORDER)
+DOWNLOAD_SET = frozenset(DOWNLOADS_DESC)
+EXPECTED_COUNT = len(ROADMAP_ORDER) + len(DOWNLOADS_DESC)
 
 _ENTRY_RE = re.compile(r"^   (cookbook/[a-z0-9_.-]+\.md)$")
 
@@ -142,22 +158,50 @@ def check_source(path: Path, source: str) -> list[Violation]:
         else:
             seen.add(entry)
 
-    # Missing and unexpected entries.
-    expected_set = set(EXPECTED_ORDER)
+    # Unknown entries and models placed in the wrong part.
+    expected_set = ROADMAP_SET | DOWNLOAD_SET
     actual_set = set(entries)
-    for entry in EXPECTED_ORDER:
-        if entry not in actual_set:
-            violations.append(
-                Violation(path, 1, 1, "cookbook-order", f"missing entry '{entry}'")
-            )
     for entry in sorted(actual_set - expected_set):
         lineno = lineno_by_entry.get(entry, 1)
         violations.append(
-            Violation(path, lineno, 1, "cookbook-order", f"unexpected entry '{entry}'")
+            Violation(
+                path,
+                lineno,
+                1,
+                "cookbook-order",
+                f"unknown entry '{entry}': add it to ROADMAP_ORDER (roadmap model) "
+                "or DOWNLOADS_DESC (with its HF download count) in scripts/check_cookbook_order.py",
+            )
+        )
+    for index, entry in enumerate(entries):
+        if entry in ROADMAP_SET and index >= len(ROADMAP_ORDER):
+            lineno = lineno_by_entry.get(entry, 1)
+            violations.append(
+                Violation(
+                    path,
+                    lineno,
+                    1,
+                    "cookbook-order",
+                    f"'{entry}' is a roadmap (#1081) model and must be in the roadmap part "
+                    f"(first {len(ROADMAP_ORDER)} entries), not in the downloads part",
+                )
+            )
+
+    # Missing entries.
+    for entry in sorted(expected_set - actual_set):
+        violations.append(
+            Violation(
+                path,
+                1,
+                1,
+                "cookbook-order",
+                f"missing entry '{entry}' (removed from the cookbook toctree, or not yet added)",
+            )
         )
 
-    # Positional order: report the first mismatch to keep the report readable.
-    for index, (actual, expected) in enumerate(zip(entries, EXPECTED_ORDER)):
+    # Roadmap part: exact positional match.
+    roadmap_part = entries[: len(ROADMAP_ORDER)]
+    for index, (actual, expected) in enumerate(zip(roadmap_part, ROADMAP_ORDER)):
         if actual != expected:
             lineno = lineno_by_entry.get(actual, 1)
             violations.append(
@@ -166,7 +210,29 @@ def check_source(path: Path, source: str) -> list[Violation]:
                     lineno,
                     1,
                     "cookbook-order",
-                    f"position {index + 1}: expected '{expected}', got '{actual}'",
+                    f"roadmap position {index + 1}: expected '{expected}', got '{actual}'",
+                )
+            )
+            break
+
+    # Downloads part: descending-order constraint instead of a fixed sequence,
+    # so a new model just has to be inserted where its download count implies.
+    downloads_part = entries[len(ROADMAP_ORDER) :]
+    for index, (first, second) in enumerate(zip(downloads_part, downloads_part[1:])):
+        if first not in DOWNLOADS_DESC or second not in DOWNLOADS_DESC:
+            continue
+        first_count = DOWNLOADS_DESC[first]
+        second_count = DOWNLOADS_DESC[second]
+        if first_count < second_count:
+            lineno = lineno_by_entry.get(first, 1)
+            violations.append(
+                Violation(
+                    path,
+                    lineno,
+                    1,
+                    "cookbook-order",
+                    f"downloads not in descending order at downloads position {index + 1}: "
+                    f"'{first}' ({first_count:,}) must come before '{second}' ({second_count:,})",
                 )
             )
             break
@@ -180,7 +246,10 @@ def check_file(path: Path) -> list[Violation]:
 
 def report_violations(violations: list[Violation]) -> int:
     if not violations:
-        print(f"OK: cookbook order matches PR #2876 ({len(EXPECTED_ORDER)} entries)")
+        print(
+            f"OK: cookbook order matches PR #2876 "
+            f"({len(ROADMAP_ORDER)} roadmap + {len(DOWNLOADS_DESC)} downloads entries)"
+        )
         return 0
     else:
         for v in violations:
@@ -197,7 +266,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "paths", nargs="*", help="Files to check (defaults to docs/index.rst)"
     )
+    parser.add_argument(
+        "--print-expected",
+        action="store_true",
+        help="Print the expected cookbook order (roadmap part, then downloads part "
+        "sorted by HF downloads) and exit without checking",
+    )
     args = parser.parse_args(argv)
+    if args.print_expected:
+        downloads_sorted = sorted(DOWNLOADS_DESC, key=DOWNLOADS_DESC.__getitem__, reverse=True)
+        for entry in ROADMAP_ORDER + downloads_sorted:
+            print(entry)
+        return 0
     targets = resolve_targets(args.paths)
     violations: list[Violation] = []
     for path in targets:
