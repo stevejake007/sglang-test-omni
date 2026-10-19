@@ -124,8 +124,8 @@ Supported Models
    cookbook/higgs_tts.md
    cookbook/moss_tts_local.md
    cookbook/nemotron_diarization.md
-   cookbook/minimax_music3.md
    cookbook/fishaudio_drama3.md
+   cookbook/minimax_music3.md
    cookbook/ming_omni.md
    cookbook/nemotron_voicechat.md
    cookbook/auk.md

@@ -7,18 +7,21 @@ PR #2876 (sgl-project/sglang-omni#2876), which mirrors the SGLang-Omni Roadmap
 #1081:
 
   1. Roadmap part: the models listed under **Focus -> Supporting** in #1081,
-     in that exact order (ROADMAP_ORDER below).
+     in that exact order (ROADMAP_ORDER in scripts/cookbook_order_data.py).
   2. Downloads part: every remaining cookbook entry, sorted by Hugging Face
-     download counts in descending order (DOWNLOADS_DESC below).
+     download counts in descending order (DOWNLOADS_DESC in
+     scripts/cookbook_order_data.py).
 
-New models are supported without touching the checking logic:
+All rules live in scripts/cookbook_order_data.py, so a roadmap change or a
+download-count change never requires touching this file's logic:
 
-  * A new model under the #1081 roadmap: insert it into ROADMAP_ORDER at its
-    roadmap position.
-  * Any other new model: add it to DOWNLOADS_DESC with its Hugging Face
-    download count and place the cookbook entry so that the downloads part
-    stays in descending order. The lint verifies that constraint directly, so
-    the exact insertion point is chosen by the download count, not hard-coded.
+  * Roadmap changed in #1081: update ROADMAP_ORDER there.
+  * Download counts moved: run `--refresh-downloads` (local, queries the HF
+    API and rewrites DOWNLOADS_DESC), then update docs/index.rst if ranks
+    changed.
+  * New model: add it to ROADMAP_ORDER (roadmap model) or HF_REPO +
+    DOWNLOADS_DESC (non-roadmap model). An unregistered cookbook entry fails
+    with a message pointing at exactly what to update.
 
 Missing, extra, duplicate, unknown, or misplaced entries are violations and
 fail CI. There is no noqa exemption.
@@ -34,54 +37,18 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from cookbook_order_data import (
+    DOWNLOADS_DESC,
+    HF_REPO,
+    ROADMAP_ORDER,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DATA_FILE = REPO_ROOT / "scripts" / "cookbook_order_data.py"
 DEFAULT_TARGET = REPO_ROOT / "docs" / "index.rst"
-
-# Models listed under **Focus -> Supporting** in sgl-project/sglang-omni#1081,
-# in that exact order. Qwen3-TTS Base and CustomVoice share one cookbook page.
-# New roadmap models: insert here at their #1081 position; the cookbook toctree
-# must then list the same prefix in the same order.
-ROADMAP_ORDER = [
-    "cookbook/qwen3_tts.md",
-    "cookbook/moss_tts.md",
-    "cookbook/whisper_asr.md",
-    "cookbook/nemotron3_5_asr.md",
-    "cookbook/moss_transcribe_diarize.md",
-    "cookbook/fishaudio_s2_pro.md",
-    "cookbook/cosmos3_nano.md",
-    "cookbook/qwen3_omni.md",
-    "cookbook/fun_cosyvoice3.md",
-    "cookbook/personaplex.md",
-    "cookbook/minicpm_o.md",
-    "cookbook/llada2_uni.md",
-]
-
-# Hugging Face download counts (queried October 2026) for every cookbook entry
-# that is NOT part of the roadmap. The downloads part of the toctree must be
-# sorted by these counts in descending order. New non-roadmap models: add a
-# line here with the current download count and insert the cookbook entry at
-# the position the count implies.
-DOWNLOADS_DESC = {
-    "cookbook/qwen3_asr.md": 1_127_141,
-    "cookbook/fun_asr.md": 152_655,
-    "cookbook/higgs_tts.md": 123_139,
-    "cookbook/moss_tts_local.md": 114_752,
-    "cookbook/nemotron_diarization.md": 90_352,
-    "cookbook/minimax_music3.md": 6_224,
-    "cookbook/fishaudio_drama3.md": 6_158,
-    "cookbook/ming_omni.md": 5_114,
-    "cookbook/nemotron_voicechat.md": 4_659,
-    "cookbook/auk.md": 2_695,
-    "cookbook/arkasr.md": 2_608,
-    "cookbook/zonos2.md": 2_346,
-    "cookbook/voxtral_tts.md": 1_561,
-    "cookbook/dots_tts.md": 746,
-    "cookbook/ming_tts.md": 318,
-}
 
 ROADMAP_SET = frozenset(ROADMAP_ORDER)
 DOWNLOAD_SET = frozenset(DOWNLOADS_DESC)
-EXPECTED_COUNT = len(ROADMAP_ORDER) + len(DOWNLOADS_DESC)
 
 _ENTRY_RE = re.compile(r"^   (cookbook/[a-z0-9_.-]+\.md)$")
 
@@ -158,7 +125,7 @@ def check_source(path: Path, source: str) -> list[Violation]:
         else:
             seen.add(entry)
 
-    # Unknown entries and models placed in the wrong part.
+    # Unknown entries.
     expected_set = ROADMAP_SET | DOWNLOAD_SET
     actual_set = set(entries)
     for entry in sorted(actual_set - expected_set):
@@ -169,10 +136,13 @@ def check_source(path: Path, source: str) -> list[Violation]:
                 lineno,
                 1,
                 "cookbook-order",
-                f"unknown entry '{entry}': add it to ROADMAP_ORDER (roadmap model) "
-                "or DOWNLOADS_DESC (with its HF download count) in scripts/check_cookbook_order.py",
+                f"unknown entry '{entry}': add it to ROADMAP_ORDER (roadmap model) or "
+                f"to HF_REPO + DOWNLOADS_DESC (non-roadmap model) in "
+                f"{repo_relative(DATA_FILE)}",
             )
         )
+
+    # Roadmap models must stay inside the roadmap part.
     for index, entry in enumerate(entries):
         if entry in ROADMAP_SET and index >= len(ROADMAP_ORDER):
             lineno = lineno_by_entry.get(entry, 1)
@@ -261,6 +231,93 @@ def report_violations(violations: list[Violation]) -> int:
         return 1
 
 
+def print_expected() -> int:
+    downloads_sorted = sorted(DOWNLOADS_DESC, key=DOWNLOADS_DESC.__getitem__, reverse=True)
+    for entry in ROADMAP_ORDER + downloads_sorted:
+        print(entry)
+    return 0
+
+
+def _format_counts_block(counts: dict[str, int]) -> str:
+    lines = ["DOWNLOADS_DESC = {"]
+    for page in sorted(counts, key=counts.get, reverse=True):
+        lines.append(f'    "{page}": {counts[page]:_},')
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def refresh_downloads() -> int:
+    """Query the HF API for every HF_REPO entry and rewrite DOWNLOADS_DESC.
+
+    Local maintenance command; CI never runs it (lint must stay deterministic
+    and offline). Reports value changes and the new expected order.
+    """
+    import json
+    import urllib.error
+    import urllib.request
+    from datetime import date
+
+    new_counts: dict[str, int] = {}
+    failures: list[str] = []
+    for page, repo in sorted(HF_REPO.items()):
+        url = f"https://huggingface.co/api/models/{repo}"
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "sglang-omni-cookbook-lint"}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.load(resp)
+            new_counts[page] = int(data.get("downloads", 0))
+            print(f"  {page}: {DOWNLOADS_DESC.get(page, 0):,} -> {new_counts[page]:,}")
+        except (urllib.error.URLError, urllib.error.HTTPError, ValueError, KeyError) as exc:
+            failures.append(f"{page} ({repo}): {exc}")
+    if not new_counts:
+        print("refresh failed for every repo; data file unchanged", file=sys.stderr)
+        return 1
+
+    old_order = sorted(DOWNLOADS_DESC, key=DOWNLOADS_DESC.get, reverse=True)
+    new_order = sorted(new_counts, key=new_counts.get, reverse=True)
+    moved = [
+        (i, page, old_order[i], new_order[i])
+        for i, page in enumerate(new_order)
+        if i < len(old_order) and page != old_order[i]
+    ]
+    if moved:
+        print("rank changes vs current table:")
+        for index, page, old_page, new_page in moved:
+            print(f"  position {index + 1}: was '{old_page}', now '{new_page}'")
+    else:
+        print("no rank changes vs current table")
+
+    text = DATA_FILE.read_text(encoding="utf-8")
+    text = re.sub(
+        r"DOWNLOADS_DESC = \{.*?\n\}",
+        _format_counts_block(new_counts),
+        text,
+        count=1,
+        flags=re.S,
+    )
+    queried_at = date.today().strftime("%Y-%m")
+    text = re.sub(
+        r'DOWNLOADS_QUERIED_AT = "[0-9]{4}-[0-9]{2}"',
+        f'DOWNLOADS_QUERIED_AT = "{queried_at}"',
+        text,
+        count=1,
+    )
+    DATA_FILE.write_text(text, encoding="utf-8")
+    print(f"wrote {repo_relative(DATA_FILE)} (queried {queried_at})")
+
+    for failure in failures:
+        print(f"  skipped: {failure}", file=sys.stderr)
+    if failures:
+        print(
+            f"{len(failures)} repo(s) failed; their previous counts were dropped. "
+            "Re-run --refresh-downloads after fixing connectivity.",
+            file=sys.stderr,
+        )
+    return 0 if not failures else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -272,12 +329,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Print the expected cookbook order (roadmap part, then downloads part "
         "sorted by HF downloads) and exit without checking",
     )
+    parser.add_argument(
+        "--refresh-downloads",
+        action="store_true",
+        help="Local maintenance: query the HF API, rewrite DOWNLOADS_DESC in "
+        "scripts/cookbook_order_data.py, and report rank changes. Never run in CI.",
+    )
     args = parser.parse_args(argv)
     if args.print_expected:
-        downloads_sorted = sorted(DOWNLOADS_DESC, key=DOWNLOADS_DESC.__getitem__, reverse=True)
-        for entry in ROADMAP_ORDER + downloads_sorted:
-            print(entry)
-        return 0
+        return print_expected()
+    if args.refresh_downloads:
+        return refresh_downloads()
     targets = resolve_targets(args.paths)
     violations: list[Violation] = []
     for path in targets:
