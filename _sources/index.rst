@@ -100,6 +100,7 @@ Supported Models
    get_started/installation_xpu.md
    get_started/installation_cpu.md
    get_started/installation_musa.md
+   get_started/troubleshooting.md
 
 
 .. toctree::
@@ -127,17 +128,20 @@ Supported Models
    cookbook/ming_omni.md
    cookbook/nemotron_voicechat.md
    cookbook/auk.md
+   cookbook/auk.md
    cookbook/arkasr.md
    cookbook/zonos2.md
    cookbook/voxtral_tts.md
    cookbook/dots_tts.md
    cookbook/ming_tts.md
+   cookbook/cosmos3_nano.md
 
 .. toctree::
    :maxdepth: 1
    :caption: General Usage
 
    basic_usage/qwen3_omni.md
+   basic_usage/native_chat_stage.md
    basic_usage/audio_translations.md
    basic_usage/tts.md
    basic_usage/process_topology.md
@@ -145,6 +149,7 @@ Supported Models
    basic_usage/process_topology_migration.md
    basic_usage/omni_router.md
    basic_usage/mps_dp.md
+   basic_usage/native_media_routes.md
 
 
 .. toctree::

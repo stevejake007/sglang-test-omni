@@ -90,3 +90,5 @@ For other platforms, use the dedicated pages:
 [Intel XPU](./installation_xpu.md),
 [Intel CPU](./installation_cpu.md), and
 [MUSA](./installation_musa.md).
+
+For installation problems, see [Troubleshooting](./troubleshooting.md).
