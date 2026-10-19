@@ -119,7 +119,6 @@ Supported Models
    cookbook/personaplex.md
    cookbook/minicpm_o.md
    cookbook/llada2_uni.md
-   cookbook/qwen3_asr.md
    cookbook/fun_asr.md
    cookbook/higgs_tts.md
    cookbook/moss_tts_local.md
@@ -134,6 +133,7 @@ Supported Models
    cookbook/voxtral_tts.md
    cookbook/dots_tts.md
    cookbook/ming_tts.md
+   cookbook/qwen3_asr.md
 
 .. toctree::
    :maxdepth: 1
