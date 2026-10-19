@@ -113,6 +113,7 @@ Supported Models
    cookbook/nemotron3_5_asr.md
    cookbook/moss_transcribe_diarize.md
    cookbook/fishaudio_s2_pro.md
+   cookbook/cosmos3_nano.md
    cookbook/qwen3_omni.md
    cookbook/fun_cosyvoice3.md
    cookbook/personaplex.md
@@ -128,13 +129,11 @@ Supported Models
    cookbook/ming_omni.md
    cookbook/nemotron_voicechat.md
    cookbook/auk.md
-   cookbook/auk.md
    cookbook/arkasr.md
    cookbook/zonos2.md
    cookbook/voxtral_tts.md
    cookbook/dots_tts.md
    cookbook/ming_tts.md
-   cookbook/cosmos3_nano.md
 
 .. toctree::
    :maxdepth: 1
