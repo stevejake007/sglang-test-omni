@@ -648,7 +648,7 @@ post-processing. Connections above the server's capacity are retried on HTTP
 Scoring runs on a reference tree: `reference-export`, `reference-asr` with the
 pinned Parakeet checkpoint, then `reference-evaluate` for the official numbers
 and `unified-score` for the metrics in
-[full_duplex_metrics.md](../docs/developer_reference/full_duplex_metrics.md).
+[full_duplex_bench.md](../docs/developer_reference/full_duplex_bench.md#full-duplex-bench-v10-unified-metrics).
 The [runbook](../docs/developer_reference/full_duplex_bench.md) runs all of them.
 
 Both `*_seedtts.py` scripts also support speech quality and similarity evaluation via UTMOS and WavLM speaker verification metrics. Running with `--utmos-only` or `--similarity-only` loads the respective pre-trained predictor and computes scores on the previously generated audio in the output directory without requiring the TTS/ASR servers to be running.
