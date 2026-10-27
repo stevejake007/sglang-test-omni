@@ -610,7 +610,7 @@ profile does not change their definitions or imply paper-identical evaluation.
 `benchmark_duplex_v15.py` records the four v1.5 overlap subsets against the same native
 endpoint; `benchmark_duplex_reference.py` scores them with the official ASR, timing and
 behavior code. Follow the
-[Full-Duplex-Bench v1.5 runbook](../docs/developer_reference/full_duplex_bench.md)
+[Full-Duplex Guide](../docs/developer_reference/full_duplex_bench.md)
 for setup, the copy-paste commands, measurement definitions and results.
 
 ## Full-Duplex-Bench v1.0 turn-taking tasks (VoiceChat)
