@@ -2,8 +2,7 @@
 
 Current stable release: **v0.1.9** on [PyPI](https://pypi.org/project/sglang-omni/).
 
-This page covers NVIDIA CUDA. Docker is recommended — UCX, flash-attn, SGLang,
-and CUDA are prebuilt.
+This page covers NVIDIA CUDA. Docker is recommended — UCX, flash-attn, SGLang, and CUDA are prebuilt.
 
 ## Option A: Docker (recommended)
 
@@ -86,9 +85,4 @@ For installation problems, see [Troubleshooting](./troubleshooting.md). `uv pip 
 
 ## Other platforms
 
-For other platforms, use the dedicated pages:
-[Apple Silicon](./installation_apple_silicon.md),
-[Ascend NPU](./installation_npu.md),
-[Intel XPU](./installation_xpu.md),
-[Intel CPU](./installation_cpu.md), and
-[MUSA](./installation_musa.md).
+For other platforms, use the dedicated pages: [Apple Silicon](./installation_apple_silicon.md), [Ascend NPU](./installation_npu.md), [Intel XPU](./installation_xpu.md), [Intel CPU](./installation_cpu.md), and [MUSA](./installation_musa.md).

@@ -1,9 +1,6 @@
 # Qwen3-Omni
 
-[Qwen3-Omni](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) is a multi-modal model
-that accepts text, image, audio, and video input and can produce text-only or text + audio output.
-This page covers every supported server configuration — use the generator to get the exact launch
-command for your hardware, then check the tables to confirm your combination is supported.
+[Qwen3-Omni](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) is a multi-modal model that accepts text, image, audio, and video input and can produce text-only or text + audio output. This page covers every supported server configuration — use the generator to get the exact launch command for your hardware, then check the tables to confirm your combination is supported.
 
 ## Prerequisites
 
@@ -32,8 +29,7 @@ Use the selector below to generate the exact launch command for your configurati
 
 ## Compatibility Matrix
 
-Colocated topology requires `--config examples/configs/qwen3_omni_colocated_h20.yaml`
-(or `qwen3_omni_colocated_h200.yaml` on H200) to set per-stage GPU memory budgets.
+Colocated topology requires `--config examples/configs/qwen3_omni_colocated_h20.yaml` (or `qwen3_omni_colocated_h200.yaml` on H200) to set per-stage GPU memory budgets.
 
 All configurations listed below are supported.
 
@@ -54,8 +50,7 @@ All configurations listed below are supported.
 
 ## Input / Output Modalities
 
-All input modality combinations work with both text-only and speech servers.
-`modalities: ["text", "audio"]` requires a **speech-mode server** (omit `--text-only`).
+All input modality combinations work with both text-only and speech servers. `modalities: ["text", "audio"]` requires a **speech-mode server** (omit `--text-only`).
 
 | Input | Output | Speech server | Minimal request body | Notes |
 |---|---|---|---|---|
@@ -107,12 +102,7 @@ Standard sampling parameters apply to the thinker stage. When `modalities` inclu
 | `video_total_pixels` | int | `null` | Total pixel budget across all video frames |
 | `use_audio_in_video` | bool | `null` | Set to `true` to process embedded audio. Requests where all videos lack audio use video-only processing; mixing videos with and without audio is rejected. Audio decoding errors are reported. |
 
-Non-streaming chat requests return HTTP 400 for invalid media, HTTP 503 when the request queue is full, and HTTP 500 for other
-server failures. With `stream=true`, errors detected after the event stream
-starts are sent as `data: {"error": {"message": "...", "type": "invalid_request_error", "code": 400}}`,
-followed by `data: [DONE]`. A full request queue uses `type: "server_error"` and `code: 503`. Other server failures use `type: "server_error"` and
-`code: 500`. The HTTP status remains 200 once streaming has started; clients
-must check for an `error` event, including after partial output.
+Non-streaming chat requests return HTTP 400 for invalid media, HTTP 503 when the request queue is full, and HTTP 500 for other server failures. With `stream=true`, errors detected after the event stream starts are sent as `data: {"error": {"message": "...", "type": "invalid_request_error", "code": 400}}`, followed by `data: [DONE]`. A full request queue uses `type: "server_error"` and `code: 503`. Other server failures use `type: "server_error"` and `code: 500`. The HTTP status remains 200 once streaming has started; clients must check for an `error` event, including after partial output.
 
 ### Known Limitations
 
