@@ -1,5 +1,7 @@
 # Full-Duplex Guide
 
+This page consolidates three parts of the SGLang-Omni developer reference on real-time voice conversation, covering three layers: how the system works (the Full Duplex Interactive Model), how to benchmark it (the Full-Duplex-Bench runbook), and how to interpret the benchmark numbers (the v1.0 unified metrics). Together they form the complete chain: **Service → Measurement → Interpretation**.
+
 This page covers full-duplex serving and benchmarking in SGLang-Omni in three parts: the [Full-Duplex-Bench runbook](#full-duplex-bench-runbook), the [v1.0 unified metrics](#full-duplex-bench-v10-unified-metrics) specification, and the [Full Duplex Interactive Model](#full-duplex-interactive-model) reference.
 
 ## Full-Duplex-Bench runbook
