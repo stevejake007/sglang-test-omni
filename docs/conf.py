@@ -105,8 +105,9 @@ html_copy_source = True
 html_last_updated_fmt = ""
 
 html_theme_options = {
-    "repository_url": "https://github.com/sgl-project/sglang-omni",
-    "repository_branch": "main/docs",
+    "repository_url": "https://github.com/stevejake007/sglang-test-omni",
+    "repository_branch": "main",
+    "path_to_docs": "docs/",
     "show_navbar_depth": 3,
     "max_navbar_depth": 4,
     "collapse_navbar": False,
@@ -121,8 +122,8 @@ html_theme_options = {
 
 html_context = {
     "display_github": True,
-    "github_user": "sgl-project",
-    "github_repo": "sgl-project.github.io",
+    "github_user": "stevejake007",
+    "github_repo": "sglang-test-omni",
     "github_version": "main",
     "conf_py_path": "/docs/",
 }
