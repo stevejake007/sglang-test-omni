@@ -1,4 +1,4 @@
-# OpenMOSS (Fudan University)
+# OpenMOSS
 
 MOSS speech models from the OpenMOSS team (Fudan University NLP Lab).
 

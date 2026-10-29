@@ -1,4 +1,4 @@
-# Tencent (Hunyuan)
+# Tencent
 
 Speech generation and translation models from Tencent Hunyuan.
 

@@ -1,4 +1,4 @@
-# OpenBMB (ModelBest)
+# OpenBMB
 
 Omni models from OpenBMB / ModelBest (Tsinghua University).
 

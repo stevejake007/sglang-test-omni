@@ -1,4 +1,4 @@
-# inclusionAI (StepFun)
+# InclusionAI
 
 Ming and LLaDA models from inclusionAI (StepFun).
 
