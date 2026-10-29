@@ -122,11 +122,12 @@ Supported Models
    :maxdepth: 2
    :caption: Cookbook
 
-   cookbook/companies/alibaba.md
+   cookbook/companies/qwen.md
    cookbook/companies/openmoss.md
    cookbook/companies/openai.md
    cookbook/companies/nvidia.md
    cookbook/companies/fish_audio.md
+   cookbook/companies/fun_audio_llm.md
    cookbook/companies/openbmb.md
    cookbook/companies/boson_ai.md
    cookbook/companies/minimax.md
