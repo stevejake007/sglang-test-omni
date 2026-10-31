@@ -34,8 +34,6 @@ def reference_timestep_embedding(
     embedding = torch.cat([angles.cos(), angles.sin()], dim=-1)
     if frequency_embedding_size % 2:
         embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
-    else:
-        pass
     return embedding
 
 
