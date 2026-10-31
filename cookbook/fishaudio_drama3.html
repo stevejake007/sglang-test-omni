@@ -51,7 +51,7 @@
     <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'cookbook/fishaudio_drama3';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
-    <script src="../_static/js/sidebar_company_toggle.js?v=af1b67d6"></script>
+    <script src="../_static/js/sidebar_company_toggle.js?v=1646c162"></script>
     <script src="../_static/js/qwen3_omni_server_generator.js?v=d7738e8a"></script>
     <script src="../_static/js/ming_omni_server_generator.js?v=7979a72f"></script>
     <link rel="icon" href="../_static/logo.ico"/>
@@ -62,7 +62,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.2.0" />
-    <meta name="docbuild:last-update" content="Oct 29, 2026"/>
+    <meta name="docbuild:last-update" content="Oct 31, 2026"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -390,7 +390,7 @@
       
       
       
-      <li><a href="https://github.com/stevejake007/sglang-test-omni" target="_blank"
+      <li><a href="https://github.com/sgl-project/sglang-omni" target="_blank"
    class="btn btn-sm btn-source-repository-button dropdown-item"
    title="Source repository"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -407,7 +407,7 @@
       
       
       
-      <li><a href="https://github.com/stevejake007/sglang-test-omni/blob/main/docs/cookbook/fishaudio_drama3.md?plain=1" target="_blank"
+      <li><a href="https://github.com/sgl-project/sglang-omni/blob/main/docs/cookbook/fishaudio_drama3.md?plain=1" target="_blank"
    class="btn btn-sm btn-source-file-button dropdown-item"
    title="Show source"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -424,7 +424,7 @@
       
       
       
-      <li><a href="https://github.com/stevejake007/sglang-test-omni/edit/main/docs/cookbook/fishaudio_drama3.md" target="_blank"
+      <li><a href="https://github.com/sgl-project/sglang-omni/edit/main/docs/cookbook/fishaudio_drama3.md" target="_blank"
    class="btn btn-sm btn-source-edit-button dropdown-item"
    title="Suggest edit"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -441,7 +441,7 @@
       
       
       
-      <li><a href="https://github.com/stevejake007/sglang-test-omni/issues/new?title=Issue%20on%20page%20%2Fcookbook/fishaudio_drama3.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/sgl-project/sglang-omni/issues/new?title=Issue%20on%20page%20%2Fcookbook/fishaudio_drama3.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -965,15 +965,19 @@ by default) and logs:</p>
 <td><p>Samples each frame’s main token and codes with Triton kernels instead of the PyTorch sampler, under the same top-k, top-p and repetition-aware rules. Using the same seed does not guarantee the same tokens as the PyTorch sampler. Rounding can keep or drop a candidate whose cumulative probability lies at top_p.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--tts_engine.factory.triton_sampling</span> <span class="pre">false</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>Fused codebook tower layers, up to 16 rows</p></td>
+<tr class="row-even"><td><p>Reference sampling, off</p></td>
+<td><p>Samples each frame with Fish Audio’s reference sampling for Drama 3, in PyTorch, instead of the samplers above. The main token’s first draw keeps only candidates whose probability reaches the request’s <code class="docutils literal notranslate"><span class="pre">epsilon_cutoff</span></code> (1e-3 when unset, 0 turns it off) and top-p drops the token that crosses it; a first draw that repeats one of the last 16 main tokens, end of speech included, becomes the most probable candidate. The codebook heads take the request’s <code class="docutils literal notranslate"><span class="pre">temperature</span></code>, <code class="docutils literal notranslate"><span class="pre">top_k</span></code> and <code class="docutils literal notranslate"><span class="pre">top_p</span></code> with no epsilon cutoff and never return a code the codec’s 1024-entry residual codebooks lack. Its recommended request parameters are <code class="docutils literal notranslate"><span class="pre">temperature</span></code> 1.0, <code class="docutils literal notranslate"><span class="pre">top_p</span></code> 1.0, no <code class="docutils literal notranslate"><span class="pre">top_k</span></code> and <code class="docutils literal notranslate"><span class="pre">epsilon_cutoff</span></code> 1e-3. With it off, a request that sets a non-zero <code class="docutils literal notranslate"><span class="pre">epsilon_cutoff</span></code> is refused.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--tts_engine.factory.reference_sampling</span> <span class="pre">true</span></code>; <code class="docutils literal notranslate"><span class="pre">--tts_engine.factory.reference_sampling_fallback</span> <span class="pre">ras</span></code> replaces a repeated first draw with a second draw at temperature 1.0, top-p 0.95 and top-k 30 instead</p></td>
+</tr>
+<tr class="row-odd"><td><p>Fused codebook tower layers, up to 16 rows</p></td>
 <td><p>Runs the codebook tower layers of decode and first-frame steps of up to 16 rows as fused Triton kernels, eagerly or inside the CUDA graphs; larger steps and the tower’s prefill keep the module path. The kernels add in a different order, so the tower’s outputs can differ in the last bits and the sampled frames can differ.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--tts_engine.factory.tower_fused_layers</span> <span class="pre">false</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>Vocoder window CUDA graphs</p></td>
+<tr class="row-even"><td><p>Vocoder window CUDA graphs</p></td>
 <td><p>Replays the decode of each streaming window length at batch 1 as a CUDA graph; batches and longer windows decode eagerly.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--vocoder.factory.window_cuda_graphs</span> <span class="pre">false</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>Vocoder fp16 decoding</p></td>
+<tr class="row-odd"><td><p>Vocoder fp16 decoding</p></td>
 <td><p>Decodes frames into audio in fp16.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--vocoder.factory.decode_dtype</span> <span class="pre">float32</span></code></p></td>
 </tr>
@@ -1112,7 +1116,7 @@ By SGLang-Omni Team
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 29, 2026.
+  Last updated on Oct 31, 2026.
   <br/>
 </p>
   </div>

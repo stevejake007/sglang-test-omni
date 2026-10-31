@@ -13,6 +13,7 @@ SGLang-Omni serves a live voice conversation on `/v1/realtime` in two ways. A na
 | --- | --- | --- |
 | MiniCPM-o 4.5 | Native full duplex, audio and camera input | [Native Full Duplex: MiniCPM-o](#native-full-duplex-minicpm-o) |
 | PersonaPlex | Native full duplex, audio input | [Native Full Duplex: PersonaPlex](#native-full-duplex-personaplex) |
+| Nemotron VoiceChat | Native full duplex, audio input | [Native Full Duplex: Nemotron VoiceChat](#native-full-duplex-nemotron-voicechat) |
 | Streaming cascade | Turn-based, with interruption | [Streaming Cascade](#streaming-cascade) |
 
 ### Native Full Duplex: MiniCPM-o
@@ -177,6 +178,39 @@ The protocol follows the [MiniCPM-o steps](#full-duplex-protocol), with these di
 | Sampling | `sglang.sampling` | The fields listed under `sampling` above; unset fields keep the deployment defaults |
 
 The whole session is one response: `response.created` arrives with the first output, each unit brings 80 ms of agent audio (160 ms for the first), and `response.done` follows the end of the input. The transcript is the words the model speaks, streamed word piece by word piece. `response.cancel` and `conversation.item.truncate` are answered with `not_supported`, and the capabilities grant neither `supports_cancel` nor `supports_truncate`: a client can only mute its own playback, and the model keeps talking. The session variant only accepts `/v1/realtime` requests; use the default pipeline for `/generate` and chat completions.
+
+### Native Full Duplex: Nemotron VoiceChat
+
+[NemotronLabs VoiceChat 11B](https://huggingface.co/nvidia/NVIDIA-NemotronLabs-VoiceChat-11B) is served for full duplex with its `session` variant; [Nemotron VoiceChat](../cookbook/nemotron_voicechat.md) covers its installation and offline usage.
+
+```bash
+python -m sglang_omni.cli serve \
+  --model-path nvidia/NVIDIA-NemotronLabs-VoiceChat-11B --variant session \
+  --enable-realtime --port 8000
+```
+
+Before it reports ready, the server runs one silent conversation, so the first real conversation compiles no kernels. A failed warmup stops the server, `SGLANG_OMNI_WARMUP_TIMEOUT` (seconds, default 600) bounds it, and `--skip-server-warmup` skips it.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `max_sessions` | 1 | Conversations at the same time. Further connections get HTTP 503. Each conversation keeps its own perception, thinker, talker and codec state, and the thinker and talker reserve KV for `max_sessions + 1` conversations |
+
+Every 80 ms of input has to pass perception, the thinker, the talker and the codec within 80 ms, or the conversation falls behind; concurrent conversations share that budget, and perception and the codec handle one conversation at a time. A conversation holds at most 6144 positions in the thinker and in the talker, about eight minutes; the unit that would pass it ends the session with `context_exhausted`.
+
+The full-duplex server is ready when this returns JSON containing `"native_full_duplex":true` and `"native_unit_ms":80`:
+
+```bash
+curl --fail http://localhost:8000/v1/realtime/capabilities
+```
+
+The protocol follows the [MiniCPM-o steps](#full-duplex-protocol), with these differences:
+
+| Setting | Field | Notes |
+|---|---|---|
+| Audio | `input_audio_buffer.append` | 16 kHz mono PCM16 in, 22.05 kHz out; the server pads a trailing partial 80 ms unit |
+| Prompt | `instructions` | Not accepted: the model uses its checkpoint's system prompt, and a session that sends `instructions` is refused |
+
+The whole session is one response, and every unit brings 80 ms of agent audio, silent while the model listens. The session variant only accepts `/v1/realtime` requests; use the default pipeline for offline recordings.
 
 ### Streaming Cascade
 
@@ -440,7 +474,7 @@ A setting comes from one of three places: the profile file, read at launch; comm
 | `session_publish` | required | Per node, the formats that reach the client. |
 | `stages` | none | Settings of stage routes by stage name, such as `asr: {gpu: 0}` or `vad: {factory: {silence_duration_ms: 800}}`. |
 | `timeout_s` | `120` | How long one input or control operation on a cascade node may take, including the wait for the last replies once the input has ended; past it the session fails with `component '<name>' append timed out`. |
-| `unit_ms` | `200` | The length of the input audio units the server forwards into the session; reported as `native_unit_ms`. |
+| `unit_ms` | `200` | The length of the input audio units the server acknowledges with `sglang.unit.done`; reported as `native_unit_ms`. Audio reaches the session as each append arrives, so the VAD node ends a turn without waiting for a unit to fill. |
 | `max_sessions` | `16` | Sessions that every component node, the VAD node and the turn detection node hold at once. A session beyond them is refused when it opens; raise it, for example with `--max_sessions 32`, when the services have room for more. |
 | `max_output_lead_ms` | `1000` | How far ahead of real time reply audio is delivered; audio already delivered cannot be taken back by an interruption. |
 | `max_pending_output_chunks` | `1024` | Reply chunks held for a client that has stopped reading before the session fails. |
@@ -676,6 +710,7 @@ Declared as `vad: {stages: [vad], inputs: [input]}`; reports `speech.started` an
 | `threshold` | number 0 to 1 | `0.5` | Speech probability above which a frame is speech. |
 | `prefix_padding_ms` | integer ≥ 0 | `300` | Audio before the first speech frame that belongs to the utterance. |
 | `silence_duration_ms` | integer ≥ 0 | `500` | Silence that ends an utterance. |
+| `background_margin_db` | number ≥ 0 or `null` | `6` | A voice this many dB quieter than the last utterance starts no speech, so it neither opens a turn nor interrupts the reply. `null` hears every voice. A session's `turn_detection` does not change it. |
 | `max_open_sessions` | integer ≥ 1 | `16` | Sessions the detector holds at once. |
 | `max_concurrency` | integer ≥ 1 | `4` | Sessions it processes at once. |
 
