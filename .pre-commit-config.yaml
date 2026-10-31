@@ -111,3 +111,12 @@ repos:
         additional_dependencies: [emoji==2.15.0]
         files: ^(docs/.*\.md$|scripts/check_doc_style\.py$|tests/unit_test/scripts/test_check_doc_style\.py$)
         pass_filenames: false
+      # Check only. A hard line break may only follow a sentence-ending
+      # punctuation mark (。！？. ! ? …); breaks in the middle of a sentence
+      # are rejected. Breaks inside fenced code blocks are ignored.
+      - id: doc-linebreak
+        name: document line break style (no mid-sentence breaks)
+        entry: python3 scripts/check_doc_linebreak.py
+        language: python
+        files: ^(docs/.*\.md$|scripts/check_doc_linebreak\.py$|tests/unit_test/scripts/test_check_doc_linebreak\.py$)
+        pass_filenames: false

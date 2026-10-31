@@ -65,6 +65,9 @@ jobs:
       - name: Test documentation style checker
         run: python -m pytest tests/unit_test/scripts/test_check_doc_style.py -q
 
+      - name: Test documentation line break checker
+        run: python -m pytest tests/unit_test/scripts/test_check_doc_linebreak.py -q
+
   playback-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
