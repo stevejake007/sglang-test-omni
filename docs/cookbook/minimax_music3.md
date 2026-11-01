@@ -52,14 +52,14 @@ Classifier-free guidance is on in both stages and has no flag. See [Guidance](#g
 ## Apple Silicon: native MLX
 
 The standalone `music3_server` runs entirely in C++ under
-`sglang_omni_mlx/native/`; it uses the same HTTP request fields as the examples
+`sglang_omni_mlx/`; it uses the same HTTP request fields as the examples
 below. Download the pinned converted checkpoint, then build with the native
 runtime's existing MLX 0.32.3 toolchain:
 
 ```bash
-python sglang_omni_mlx/native/ci/provision_models.py "$MUSIC3_DATA" \
+python sglang_omni_mlx/ci/provision_models.py "$MUSIC3_DATA" \
   --model mlx-community/MiniMax-Music3-mxfp8
-sglang_omni_mlx/native/scripts/build_runtime.sh "$MUSIC3_RUNTIME" "$MUSIC3_BUILD"
+sglang_omni_mlx/scripts/build_runtime.sh "$MUSIC3_RUNTIME" "$MUSIC3_BUILD"
 "$MUSIC3_RUNTIME/bin/music3_server" \
   --model-path "$MUSIC3_DATA/models/mlx-community_MiniMax-Music3-mxfp8" \
   --model-name MiniMaxAI/MiniMax-Music3 --port 8000
@@ -109,8 +109,8 @@ The existing single-request worker owns both stages and returns 503 for concurre
 
 The numerical reference is [PR #1990](https://github.com/sgl-project/sglang-omni/pull/1990)
 at `195e4e9058e13af605f13f5c55a26efe651805a6`. Reference source hashes are in
-`native/ci/music3_reference.json`; checkpoint hashes and revision are in
-`native/ci/model_pins.json`. The first feedback frame and FP16 hidden-state
+`ci/music3_reference.json`; checkpoint hashes and revision are in
+`ci/model_pins.json`. The first feedback frame and FP16 hidden-state
 handoff follow that reference. The server lifecycle extraction follows
 [PR #2870](https://github.com/sgl-project/sglang-omni/pull/2870).
 
@@ -120,7 +120,7 @@ environment with MLX 0.32.3, mlx-lm 0.31.3, Transformers 5.12.1, NumPy
 and TorchAudio 2.11.0 for CPU resampling. Python is used only for this check:
 
 ```bash
-python sglang_omni_mlx/native/ci/generate_music3_reference.py \
+python sglang_omni_mlx/ci/generate_music3_reference.py \
   --model-path "$MUSIC3_DATA/models/mlx-community_MiniMax-Music3-mxfp8" \
   --runtime-bin "$MUSIC3_RUNTIME/bin" --output-directory "$MUSIC3_PARITY"
 ```
@@ -138,7 +138,7 @@ multilingual tag casing, malformed tags, and both waveform cases. The results
 are saved in `prompt-parity.json`.
 
 Mac CI runs the Music3 HTTP checks and includes
-`native/ci/model_golden/minimax-music3.json` in its existing golden loop. Its
+`ci/model_golden/minimax-music3.json` in its existing golden loop. Its
 cases cover English and Chinese, including a 250-frame acoustic overlap.
 Music3 HTTP tests run in a separate pytest process so the module-scoped ASR
 servers release their weights first. The runner logs its unified memory size.
@@ -147,8 +147,8 @@ For another chip, review and import the runner's
 `golden-outputs/minimax-music3.json` artifact using the existing workflow:
 
 ```bash
-python sglang_omni_mlx/native/ci/check_model_golden.py \
-  --golden sglang_omni_mlx/native/ci/model_golden/minimax-music3.json \
+python sglang_omni_mlx/ci/check_model_golden.py \
+  --golden sglang_omni_mlx/ci/model_golden/minimax-music3.json \
   --import "$MUSIC3_GOLDEN_OUTPUT"
 ```
 
@@ -178,10 +178,10 @@ To rerun the real-checkpoint HTTP and per-chip golden checks:
 
 ```bash
 NATIVE_RUNTIME_BIN="$MUSIC3_RUNTIME/bin" CI_DATA_ROOT="$MUSIC3_DATA" \
-  python -m pytest -q sglang_omni_mlx/native/ci/test_model_servers.py -k music3
-python sglang_omni_mlx/native/ci/check_model_golden.py \
+  python -m pytest -q sglang_omni_mlx/ci/test_model_servers.py -k music3
+python sglang_omni_mlx/ci/check_model_golden.py \
   --runtime-bin "$MUSIC3_RUNTIME/bin" --data-root "$MUSIC3_DATA" \
-  --golden sglang_omni_mlx/native/ci/model_golden/minimax-music3.json \
+  --golden sglang_omni_mlx/ci/model_golden/minimax-music3.json \
   --outputs "$MUSIC3_GOLDEN_OUTPUTS"
 ```
 ### Serial weight offload

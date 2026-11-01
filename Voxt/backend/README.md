@@ -1,7 +1,7 @@
 # Voxt on sglang-omni's native MLX runtime
 
 Voxt can run selected local ASR checkpoints, Silero VAD and Sortformer speaker
-diarization on sglang-omni's native runtime (`sglang_omni_mlx/native`): C++
+diarization on sglang-omni's native runtime (`sglang_omni_mlx`): C++
 binaries on MLX, with no Python runtime. Voxt starts and owns the selected
 server. Other models keep their Swift backend.
 
@@ -40,7 +40,7 @@ Voxt/backend/run_omni_dev.sh run
 ```
 
 `build` builds the runtime into `Voxt/build/omni-runtime` with
-`sglang_omni_mlx/native/scripts/build_runtime.sh`, then builds "Voxt Omni Dev".
+`sglang_omni_mlx/scripts/build_runtime.sh`, then builds "Voxt Omni Dev".
 `bin/` holds `qwen3_asr_server`, `qwen3_asr_transcribe`, `whisper_server`,
 `whisper_transcribe`, `cohere_transcribe_server`, `cohere_transcribe`,
 `moss_transcribe_diarize_server`, `moss_transcribe`, `nemotron_asr_server`,
@@ -84,7 +84,7 @@ and quitting stops it.
 
 ## Tests and CI
 
-- Runtime correctness is checked by `sglang_omni_mlx/native/ci`:
+- Runtime correctness is checked by `sglang_omni_mlx/ci`:
   - `provision.py` fetches the pinned checkpoint and rebuilds the frozen corpus from its public sources, checking every file's SHA-256.
   - `check_golden.py` runs the runtime over the 392-clip corpus with Voxt's Final request and requires every clip to match the golden output. It reports error rates next to the original Swift backend's.
   - Silero VAD and Sortformer golden files hold the original Swift outputs; `vad_golden.py` and `sortformer_golden.py` check them with tolerances for MLX kernel differences.

@@ -43,7 +43,7 @@ Resumable transfer is shared under `Core/Models`; managers retain install/downlo
 
 ## Native HTTP boundary
 
-Local ASR, Silero and Sortformer execute in the existing Native server subprocesses through their HTTP/WebSocket protocols. The shared `sglang_omni_mlx/native` package is not a Voxt extension point: keep it identical to the officially merged source, with future synchronization through normal official-main merges. Voxt owns request conversion, process management and model-storage coordination outside that package.
+Local ASR, Silero and Sortformer execute in the existing Native server subprocesses through their HTTP/WebSocket protocols. The shared `sglang_omni_mlx` package is not a Voxt extension point: keep it identical to the officially merged source, with future synchronization through normal official-main merges. Voxt owns request conversion, process management and model-storage coordination outside that package.
 
 The abandoned XPC service, C ABI wrappers, typed-engine extraction, helper/client/contracts, App Group configurations and smoke tools are removed. XPC is not a pending production factory or release gate. This does not restore the Swift Audio fallback: the app still has no AudioSTT/VAD/Core product/package/pin. Keep MLX Swift LLM/VLM/MLX, Tokenizers/HuggingFace, llama.swift, Remote routes, saved model choices and installed directories.
 

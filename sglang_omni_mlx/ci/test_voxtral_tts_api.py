@@ -3,7 +3,7 @@
 returns is checked by transcribing it with qwen3_asr_server.
 
     NATIVE_RUNTIME_BIN=<dir with the servers> CI_DATA_ROOT=<provisioned root> \
-        python -m pytest sglang_omni_mlx/native/ci/test_voxtral_tts_api.py
+        python -m pytest sglang_omni_mlx/ci/test_voxtral_tts_api.py
 """
 
 from __future__ import annotations

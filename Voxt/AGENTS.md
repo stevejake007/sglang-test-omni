@@ -45,7 +45,7 @@ Swift package dependencies are resolved through the Xcode project. Direct packag
 
 ## Architecture And Documentation
 
-Local ASR/VAD/diarization use the existing Native HTTP/WebSocket subprocesses. Do not add XPC helpers or modify the shared `sglang_omni_mlx/native` package for Voxt integration; process/request/storage adaptation belongs to Voxt. Preserve the official Native implementation and synchronize only through normal official-main merges.
+Local ASR/VAD/diarization use the existing Native HTTP/WebSocket subprocesses. Do not add XPC helpers or modify the shared `sglang_omni_mlx` package for Voxt integration; process/request/storage adaptation belongs to Voxt. Preserve the official Native implementation and synchronize only through normal official-main merges.
 
 - Documentation index: `docs/index.md`.
 - Current source map: `docs/Architecture.md`.

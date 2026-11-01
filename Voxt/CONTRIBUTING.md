@@ -73,7 +73,7 @@ For local development, build the Native Omni runtime and package the app with:
 
 ```bash
 runtime_dir="$PWD/Voxt/build/omni-runtime"
-sglang_omni_mlx/native/scripts/build_runtime.sh "$runtime_dir"
+sglang_omni_mlx/scripts/build_runtime.sh "$runtime_dir"
 Voxt/tools/package_local_app.sh \
   --optimized \
   --native-runtime "$runtime_dir" \
@@ -108,7 +108,7 @@ to change for a release.
    builds an unsigned package.
 2. The draft's notes already hold the requirements, install steps, build
    source and the pull requests that touched `Voxt/` or
-   `sglang_omni_mlx/native` since the previous `voxt-v` tag. The maintainer
+   `sglang_omni_mlx` since the previous `voxt-v` tag. The maintainer
    installs the draft's DMG, checks it, replaces each TODO line (a one-sentence
    summary, Changed and Fixed; drop a section with nothing in it), and
    publishes the release.

@@ -157,13 +157,13 @@ single-stream figure. Output is 24 kHz.
 
 ## Apple Silicon (Native MLX)
 
-`voxtral_tts_server` from the native MLX runtime (`sglang_omni_mlx/native`) serves the same
+`voxtral_tts_server` from the native MLX runtime (`sglang_omni_mlx`) serves the same
 `/v1/audio/speech` API on an Apple Silicon Mac, from the 4-bit
 [`mlx-community/Voxtral-4B-TTS-2603-mlx-4bit`](https://huggingface.co/mlx-community/Voxtral-4B-TTS-2603-mlx-4bit)
 checkpoint, as one C++ process without CUDA, PyTorch or Python.
 
 ```bash
-sglang_omni_mlx/native/scripts/build_runtime.sh ~/omni-runtime
+sglang_omni_mlx/scripts/build_runtime.sh ~/omni-runtime
 
 hf download mlx-community/Voxtral-4B-TTS-2603-mlx-4bit \
   --revision f98fc91b9cb5adc7dab56102c690458276c14c6a --local-dir voxtral-4b-tts-mlx-4bit
@@ -195,7 +195,7 @@ are bit-identical to the Python MLX port in
 [#2788](https://github.com/sgl-project/sglang-omni/pull/2788), and so is its 16-bit PCM after
 the first 10 ms, which it fades in float32 as the CUDA vocoder does. Mac CI checks five seeded
 requests' codes (English, French, German, Hindi, and a `max_new_tokens` cap) against
-`sglang_omni_mlx/native/ci/model_golden/voxtral-4b-tts-2603.json`.
+`sglang_omni_mlx/ci/model_golden/voxtral-4b-tts-2603.json`.
 
 ## Known Limitations
 

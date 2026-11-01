@@ -3,7 +3,7 @@
 the real models.
 
     NATIVE_RUNTIME_BIN=<dir with the servers> CI_DATA_ROOT=<provisioned root> \
-        python -m pytest sglang_omni_mlx/native/ci/test_model_servers.py
+        python -m pytest sglang_omni_mlx/ci/test_model_servers.py
 """
 
 from __future__ import annotations

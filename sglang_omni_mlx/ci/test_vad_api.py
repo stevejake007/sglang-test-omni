@@ -3,7 +3,7 @@
 against the real model and the original Voxt's outputs in the golden file.
 
     NATIVE_RUNTIME_BIN=<dir with qwen3_asr_server> CI_DATA_ROOT=<provisioned root> \
-        python -m pytest sglang_omni_mlx/native/ci/test_vad_api.py
+        python -m pytest sglang_omni_mlx/ci/test_vad_api.py
 """
 
 from __future__ import annotations

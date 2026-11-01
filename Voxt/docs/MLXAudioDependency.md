@@ -4,7 +4,7 @@
 
 Voxt no longer imports, loads or links MLXAudioSTT, MLXAudioVAD or MLXAudioCore. The Audio package and resolved pin are removed. Local ASR, Silero and Sortformer use the existing Native HTTP/WebSocket server subprocesses; unavailable Native reports an explicit error rather than silently returning to Swift Audio.
 
-The shared `sglang_omni_mlx/native` package must remain the officially merged implementation. XPC and the task-added C ABI/engine/lifetime changes are withdrawn, not future production gates. App-side protocol conversion, process ownership and cooperating model-directory readers remain. Preserve the original family options/longform behavior, model catalog, saved choices, installations and `model-storage/mlx-audio/...` paths. That storage name is not a package dependency.
+The shared `sglang_omni_mlx` package must remain the officially merged implementation. XPC and the task-added C ABI/engine/lifetime changes are withdrawn, not future production gates. App-side protocol conversion, process ownership and cooperating model-directory readers remain. Preserve the original family options/longform behavior, model catalog, saved choices, installations and `model-storage/mlx-audio/...` paths. That storage name is not a package dependency.
 
 Removing Audio does not mean removing MLX. Keep MLX Swift LLM/VLM/MLX, llama.swift, Tokenizers/HuggingFace and Remote ASR/LLM. Identity-only model fixtures in lifecycle tests cannot perform inference and are not numerical fallbacks.
 

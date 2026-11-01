@@ -3,7 +3,7 @@
 ## 已确认的架构决策
 
 - 不做 XPC，不把它列为 MLX Audio 替换或 release 的前置条件。
-- 不扩展共享 `sglang_omni_mlx/native` 包。撤回本任务加入的 C ABI、typed realtime engine 提取、checked destroy、配置/数值边界修改及配套替身测试，恢复到已合入官方 main 的 `e3d7dc378c749914ffca07576c00b16d32b08739`。后续只正常合入官方更新，不把 Voxt 的封装职责放进共享包。
+- 不扩展共享 `sglang_omni_mlx` 包。撤回本任务加入的 C ABI、typed realtime engine 提取、checked destroy、配置/数值边界修改及配套替身测试，恢复到已合入官方 main 的 `e3d7dc378c749914ffca07576c00b16d32b08739`。后续只正常合入官方更新，不把 Voxt 的封装职责放进共享包。
 - 删除 Voxt XPC helper/client/contracts、配置、App Group/smoke/嵌入链路以及对应测试/CI 选择，不保留等待生产接入的死代码。
 - 保留 Voxt 已有 Native HTTP/WebSocket 子进程路线和完整 AudioSTT/VAD/Core 退包成果。Native 不可用明确报错，不恢复 Swift 数值 fallback。
 - 原 catalog、保存选择、安装权重、Remote ASR/LLM、MLX Swift LLM/VLM/MLX、Tokenizers/HuggingFace、llama.swift 不变，原 `model-storage/mlx-audio/...` 路径不重命名。
@@ -24,7 +24,7 @@
 
 ## 修正后的验证清单
 
-- [x] 当前修正index与working tree的120 Native files、mode/blob/内容与官方版本一致（subtree `86848cefe4cda5902b25248f6c7b77cdb511cf02`）；修正commit后再用`git diff e3d7dc37 HEAD -- sglang_omni_mlx/native`检查零差异。
+- [x] 当前修正index与working tree的120 Native files、mode/blob/内容与官方版本一致（subtree `86848cefe4cda5902b25248f6c7b77cdb511cf02`）；修正commit后再用`git diff e3d7dc37 HEAD -- sglang_omni_mlx`检查零差异。
 - [x] App/project/source/test/CI无 abandoned XPC helper/Contracts/Core链接、selector、entrypoint或构建phase。实际项目仅Voxt/VoxtTests targets及Debug/Release/TestDebug配置；第三方Sparkle/EventKit系统XPC组件保留。
 - [x] Audio product/package/pin缺失；严格Mac build后Package.resolved字节不变（SHA256 `a5a7e57da071226128a869cff06c69ed9720e32f955cf23d1870477cbb300999`），没有重新解析升级pins。
 - [x] Python工具39、source/resolved audit、全量hooks及`git diff --check`通过。独立删除review也fresh39工具+22 Swift；portable替身限制明确。

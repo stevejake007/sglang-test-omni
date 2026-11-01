@@ -25,7 +25,7 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Develope
 
 case "${1:-}" in
   build)
-    "$voxt_dir/../sglang_omni_mlx/native/scripts/build_runtime.sh" "$runtime_dir"
+    "$voxt_dir/../sglang_omni_mlx/scripts/build_runtime.sh" "$runtime_dir"
     xcodebuild build \
       -project "$voxt_dir/Voxt.xcodeproj" \
       -scheme Voxt \

@@ -86,7 +86,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
 
       - name: Build the native runtime
-        run: sglang_omni_mlx/native/scripts/build_runtime.sh "$RUNNER_TEMP/runtime" "$RUNNER_TEMP/runtime-build"
+        run: sglang_omni_mlx/scripts/build_runtime.sh "$RUNNER_TEMP/runtime" "$RUNNER_TEMP/runtime-build"
 
       - name: Import the signing identities
         if: env.IS_RELEASE == 'true'
@@ -215,7 +215,7 @@ jobs:
               else
                 :
               fi
-            done < <(git log --format=%s "$previous..HEAD" -- Voxt sglang_omni_mlx/native)
+            done < <(git log --format=%s "$previous..HEAD" -- Voxt sglang_omni_mlx)
           else
             :
           fi
@@ -224,7 +224,7 @@ jobs:
           else
             :
           fi
-          mlx_version="$(awk -F'==' '$1 == "mlx" {print $2}' sglang_omni_mlx/native/scripts/build-tools.lock)"
+          mlx_version="$(awk -F'==' '$1 == "mlx" {print $2}' sglang_omni_mlx/scripts/build-tools.lock)"
           # The maintainer replaces every TODO line; Voxt Appcast refuses notes that still hold one.
           cat > "$notes" <<NOTES
           $todo
@@ -253,7 +253,7 @@ jobs:
           ${pulls}
           ### Build
 
-          - Built from $GITHUB_SHA by the Voxt Release workflow, with the runtime from sglang_omni_mlx/native built against MLX $mlx_version (macOS 15 wheels).
+          - Built from $GITHUB_SHA by the Voxt Release workflow, with the runtime from sglang_omni_mlx built against MLX $mlx_version (macOS 15 wheels).
           - Signed with Developer ID and notarized by Apple. SHA-256 checksums are attached.
           NOTES
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag --latest \
