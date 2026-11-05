@@ -197,7 +197,7 @@ def run_leg(
     args: argparse.Namespace,
 ) -> tuple[Leg, dict[int, dict[str, object]]]:
     leg_dir = args.output_dir / name
-    leg_dir.mkdir()
+    leg_dir.mkdir(exist_ok=True)
     server_log = leg_dir / "server.log"
     started = time.monotonic()
     stream_data: dict[int, dict[str, object]] = {}
@@ -335,7 +335,7 @@ def main() -> None:
         level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s"
     )
     args = parse_args(sys.argv[1:])
-    args.output_dir.mkdir(parents=True)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
     legs = []
     stream_by_leg: list[tuple[str, dict[int, dict[str, object]]]] = []
     for index, letter in enumerate(args.order):
