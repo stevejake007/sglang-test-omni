@@ -413,7 +413,7 @@ def parse_args(
         )
     )
     _add_dataset_args(parser, dataset_config)
-    _add_request_args(parser)
+    _add_request_args(parser, dataset_config)
     _add_server_args(parser)
     args = parser.parse_args(argv)
     if args.reuse_asr_results and args.profile_events:
@@ -490,7 +490,24 @@ def _add_dataset_args(
     parser.add_argument("--output-dir", default=dataset_config.output_dir)
 
 
-def _add_request_args(parser: argparse.ArgumentParser) -> None:
+def _default_max_new_tokens(dataset_name: str) -> int | None:
+    """Output budget the benchmark sends by default for a dataset.
+
+    ``movies800times`` clips are only a few seconds long, and the legacy
+    65536-token budget made the server loop short clips for minutes and skew
+    the wall clock; CI sends no budget there and lets the server size it from
+    the audio duration, so the benchmark mirrors that. The long-audio datasets
+    keep the explicit budget.
+    """
+    if dataset_name == "movies800times":
+        return None
+    return DEFAULT_MAX_NEW_TOKENS
+
+
+def _add_request_args(
+    parser: argparse.ArgumentParser,
+    dataset_config: DatasetConfig,
+) -> None:
     parser.add_argument("--model-path", default=MODEL_PATH)
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--language")
@@ -513,8 +530,13 @@ def _add_request_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--max-new-tokens",
         type=_positive_int,
-        default=DEFAULT_MAX_NEW_TOKENS,
-        help="Optional max_new_tokens forwarded to /v1/audio/transcriptions.",
+        default=_default_max_new_tokens(dataset_config.name),
+        help=(
+            "Optional max_new_tokens forwarded to /v1/audio/transcriptions. "
+            "Defaults to None on movies800times so the server sizes the budget "
+            "from the audio duration, as CI does; defaults to 65536 on the "
+            "long-audio datasets. Pass a value to override."
+        ),
     )
     parser.add_argument(
         "--stream",

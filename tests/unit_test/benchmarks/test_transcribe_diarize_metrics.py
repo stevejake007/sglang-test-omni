@@ -48,8 +48,18 @@ def test_parse_args_defaults_to_movies800times_preset() -> None:
     assert args.dataset == "movies800times"
     assert args.repo_id == module.MOVIES800_REPO_ID
     assert args.max_samples is None
-    assert args.max_new_tokens == module.DEFAULT_MAX_NEW_TOKENS
+    assert args.max_new_tokens is None
     assert args.output_dir == module.MOVIES800TIMES_OUTPUT_DIR
+
+
+def test_parse_args_movies800times_honors_explicit_max_new_tokens() -> None:
+    """An explicit budget still wins over the movies800times no-budget default."""
+    module = load_benchmark_module()
+
+    args = module.parse_args(["--max-new-tokens", "1024"])
+
+    assert args.dataset == "movies800times"
+    assert args.max_new_tokens == 1024
 
 
 def test_parse_args_uses_aishell4_long_preset() -> None:

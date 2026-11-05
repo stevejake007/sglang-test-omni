@@ -238,12 +238,20 @@ Paired runs on one H200 140GB with FA3 and SGLang 0.5.22, `max_running_requests=
 
 | Dataset | Concurrency | Baseline | DFlash | Speedup | Baseline CER / DER | DFlash CER / DER |
 |---|---:|---:|---:|---:|---:|---:|
-| movies800times | 1 | 45.1 | 92.5 | 2.05x | 5.87% / 21.11% | 5.82% / 21.01% |
-| movies800times | 16 | 97.3 | 253.7 | 2.61x | 5.82% / 21.06% | 5.80% / 21.06% |
+| movies800times | 1 | — | — | 1.85x | 5.82% / 21.06% | 5.80% / 21.01% |
+| movies800times | 16 | — | — | 1.27x | 5.82% / 21.06% | 5.80% / 21.01% |
 | aishell4_long | 1 | 63.8 | 167.2 | 2.62x | 13.79% / 9.80% | 13.85% / 10.01% |
 | aishell4_long | 4 | 103.8 | 323.8 | 3.12x | 13.75% / 10.20% | 13.88% / 10.33% |
 
-The draft accepts 5.4 tokens per verify on `movies800times` and 5.1 on `aishell4_long` at concurrency 1. DER is `speaker_timestamp_der` at collar 0, which counts every small boundary shift. On `aishell4_long` the draft adds 0.21 and 0.13 points at collar 0 and at most 0.11 at a 0.25 s collar, while batching alone adds 0.40 and 0.25. One meeting in the set flips between five and seven detected speakers, which moves that file's DER by about 11 points in either mode.
+The `movies800times` rows were previously measured with the benchmark client
+sending a 65536-token output budget; on the short 4–5 s clips that budget made
+the server loop two clips for 60–110 s and inflated both sides' wall clocks
+(the earlier 2.05x at c1 and 2.61x at c16). The benchmark now sends no output
+budget on `movies800times`, letting the server size it from the audio duration
+as CI does; the absolute audio_s/s values from the bugged runs are not
+reported.
+
+The draft accepts 4.8 tokens per verify on `movies800times` and 5.1 on `aishell4_long` at concurrency 1. DER is `speaker_timestamp_der` at collar 0, which counts every small boundary shift. On `aishell4_long` the draft adds 0.21 and 0.13 points at collar 0 and at most 0.11 at a 0.25 s collar, while batching alone adds 0.40 and 0.25. One meeting in the set flips between five and seven detected speakers, which moves that file's DER by about 11 points in either mode.
 
 On one H100 80GB with the same settings, `aishell4_long` goes from 58.0 to 159.0 audio seconds per second at concurrency 1 (2.74x), 100.0 to 355.3 at concurrency 16 (3.55x), and 96.0 to 356.5 at concurrency 32 with `max_running_requests=32` and `cuda_graph_max_bs=32` (3.71x). The last two fill the KV pool, so requests retract in both modes.
 
@@ -301,6 +309,11 @@ profiler endpoints, runs one extra pass, and adds its `stage_breakdown`,
 The event directory is a server-side path, so report generation requires the
 benchmark process to see the same filesystem. For router or DP deployments,
 pass every worker serve URL with a comma-separated `--profile-urls` value.
+
+On `movies800times` the benchmark sends no `max_new_tokens` by default,
+matching CI, so the server sizes the budget from the audio duration
+(`max(512, 10 * audio seconds)`); the long-audio datasets pass
+`--max-new-tokens 65536` explicitly.
 
 ## Benchmark Results
 
