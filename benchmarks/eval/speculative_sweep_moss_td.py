@@ -30,6 +30,12 @@ Usage:
         --draft-config examples/configs/moss_td_dflash.yaml \\
         --output-dir results/sweep/moss_td_googletime \\
         --dataset googletime
+
+Hosts with a minimal CUDA toolkit (nvcc without curand.h) need flashinfer's
+bundled CUDA headers on the include/lib paths for its JIT sampling kernel:
+
+    CPATH="<venv>/lib/python3.12/site-packages/nvidia/cu13/include"
+    LD_LIBRARY_PATH="<venv>/lib/python3.12/site-packages/nvidia/cu13/lib"
 """
 
 from __future__ import annotations
