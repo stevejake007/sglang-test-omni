@@ -162,23 +162,8 @@ URL, or a base64 **data URI** (`data:audio/wav;base64,<...>`, decoded with `soun
 
 ### Streaming
 
-Set `"stream": true` and `"response_format": "pcm"` to receive raw PCM audio
-chunks in real time.
-
-```bash
-curl -N -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "OpenMOSS-Team/MOSS-TTS-v1.5",
-    "voice": "default",
-    "input": "Get the trust fund to the bank early.",
-    "ref_audio": "https://huggingface.co/datasets/zhaochenyang20/seed-tts-eval-mini/resolve/main/en/prompt-wavs/common_voice_en_10119832.wav",
-    "ref_text": "We asked over twenty different people, and they all said it was his.",
-    "stream": true,
-    "response_format": "pcm"
-  }' \
-  --output output.pcm
-```
+For the shared streaming request, response contract, and examples, see
+[TTS Model Usage — 2. Streaming](../basic_usage/tts.md#2-streaming).
 
 ### Duration Control
 

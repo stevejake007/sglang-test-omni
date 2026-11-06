@@ -101,25 +101,10 @@ URL, or a base64 **data URI** (`data:audio/wav;base64,<...>`, transcoded via `ff
 
 ### Streaming
 
-Set `"stream": true` with `"response_format": "pcm"` to receive raw signed 16-bit
-little-endian PCM bytes. The response is not SSE or base64. ZONOS2 returns mono 44.1 kHz
-audio with `Content-Type: audio/pcm` and the `X-Sample-Rate`, `X-Channels`, and
-`X-Bit-Depth` headers.
+For the shared streaming request, response contract, and examples, see
+[TTS Model Usage — 2. Streaming](../basic_usage/tts.md#2-streaming).
 
-```bash
-curl -sS -D output.headers -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input": "Get the trust fund to the bank early.",
-    "ref_audio": "https://huggingface.co/datasets/zhaochenyang20/seed-tts-eval-mini/resolve/main/en/prompt-wavs/common_voice_en_10119832.wav",
-    "ref_text": "We asked over twenty different people, and they all said it was his.",
-    "response_format": "pcm",
-    "stream": true
-  }' \
-  --output output.pcm
-
-ffmpeg -f s16le -ar 44100 -ac 1 -i output.pcm output.wav
-```
+ZONOS2 streams mono 44.1 kHz signed 16-bit little-endian PCM.
 
 ### Language
 

@@ -87,7 +87,7 @@ See the [non-streaming Fish Speech voice cloning request](../basic_usage/tts.md#
 
 Streaming:
 
-See the [streaming Fish Speech voice cloning request](../basic_usage/tts.md#fish-speech-voice-cloning).
+See the [streaming Fish Speech voice cloning request](../basic_usage/tts.md#2-streaming).
 
 ## Request Parameters
 

@@ -220,7 +220,10 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 ### Streaming
 
-Incremental Flow + HiFT decoding supports streaming. Set `stream: true` and `response_format: "pcm"` to emit audio before AR generation completes. The vocoder uses CosyVoice3's causal chunk loop: 25 speech tokens per hop (~1 s of audio). The first PCM chunk is emitted once AR produces `28 + prompt_pad` tokens (where `prompt_pad` rounds the Flow prompt length to a 25-token multiple). Later hops grow from 25 to 50 to 100 tokens in vocoder to increase batching efficiency without affecting audio continuity or real-time factor, only the decoding granularity changes, not the total synthesis time. The scheduler processes at most one hop per request per step to prevent backlogged streams from monopolizing the GPU. Non-streaming requests decode the entire utterance in one pass.
+For the shared streaming request, response contract, and examples, see
+[TTS Model Usage — 2. Streaming](../basic_usage/tts.md#2-streaming).
+
+The vocoder uses CosyVoice3's causal chunk loop: 25 speech tokens per hop (~1 s of audio). The first PCM chunk is emitted once AR produces `28 + prompt_pad` tokens (where `prompt_pad` rounds the Flow prompt length to a 25-token multiple). Later hops grow from 25 to 50 to 100 tokens in vocoder to increase batching efficiency without affecting audio continuity or real-time factor, only the decoding granularity changes, not the total synthesis time. The scheduler processes at most one hop per request per step to prevent backlogged streams from monopolizing the GPU. Non-streaming requests decode the entire utterance in one pass.
 
 Optional serving knobs (vocoder factory):
 
@@ -229,20 +232,6 @@ Optional serving knobs (vocoder factory):
 | `token_hop_len` | `25` | Base hop size; must match training chunk size |
 | `token_max_hop_len` | `100` | Cap for `25 → 50 → 100` growth |
 | `disable_hop_growth` | `false` | Leave off; growth ON performs better at high concurrency |
-
-```bash
-curl -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
-    "input": "Get the trust fund to the bank early.",
-    "ref_audio": "https://huggingface.co/datasets/zhaochenyang20/seed-tts-eval-mini/resolve/main/en/prompt-wavs/common_voice_en_10119832.wav",
-    "ref_text": "We asked over twenty different people, and they all said it was his.",
-    "stream": true,
-    "response_format": "pcm"
-  }' \
-  --output output.pcm
-```
 
 ## Generation Parameters
 
@@ -473,9 +462,8 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 ### Streaming
 
-Incremental Flow + HiFT decoding is enabled. Set `stream: true` and use
-`response_format: "pcm"` so the server can emit audio before speech-token
-generation finishes.
+For the shared streaming request, response contract, and examples, see
+[TTS Model Usage — 2. Streaming](../basic_usage/tts.md#2-streaming).
 
 The vocoder follows CosyVoice3's causal chunk loop: 25 speech tokens per hop
 (`pre_lookahead_len=3`, 25 Hz → about 1 s of audio per chunk). The first PCM
@@ -494,20 +482,6 @@ in sync if you change the hop):
 | `token_hop_len` | `25` | Base hop / AR follow-up flush; must match training chunk size |
 | `token_max_hop_len` | `100` | Cap for `25 → 50 → 100` growth |
 | `disable_hop_growth` | `false` | Leave off unless A/B'ing; growth ON was better at c=16 |
-
-```bash
-curl -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
-    "input": "Get the trust fund to the bank early.",
-    "ref_audio": "https://huggingface.co/datasets/zhaochenyang20/seed-tts-eval-mini/resolve/main/en/prompt-wavs/common_voice_en_10119832.wav",
-    "ref_text": "We asked over twenty different people, and they all said it was his.",
-    "stream": true,
-    "response_format": "pcm"
-  }' \
-  --output output.pcm
-```
 
 ## Generation Parameters
 

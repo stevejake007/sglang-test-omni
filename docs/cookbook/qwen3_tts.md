@@ -506,29 +506,8 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 ### Streaming
 
-Set `"stream": true` and `"response_format": "pcm"` to receive raw PCM audio
-chunks in real time:
-
-```bash
-curl -N -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
-    "voice": "default",
-    "input": "Get the trust fund to the bank early.",
-    "references": [{
-      "audio_path": "https://huggingface.co/datasets/zhaochenyang20/seed-tts-eval-mini/resolve/main/en/prompt-wavs/common_voice_en_10119832.wav",
-      "text": "We asked over twenty different people, and they all said it was his."
-    }],
-    "stream": true,
-    "response_format": "pcm"
-  }' \
-  --output output.pcm
-```
-
-Streaming returns `audio/pcm` 16-bit mono PCM bytes with sample-rate metadata in
-the response headers. See the [Higgs TTS cookbook](../cookbook/higgs_tts.md#streaming)
-for a full Python raw PCM consumer.
+For the shared streaming request, response contract, and examples, see
+[TTS Model Usage — 2. Streaming](../basic_usage/tts.md#2-streaming).
 
 All three task types (Base/reference-cloning, CustomVoice and VoiceDesign) use
 true incremental codec and vocoder streaming, for both this HTTP endpoint and

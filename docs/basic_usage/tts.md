@@ -311,7 +311,7 @@ curl -X POST http://localhost:8000/v1/audio/speech \
   --output output.wav
 ```
 
-2. Streaming
+### 2. Streaming
 
 Enable streaming to receive raw PCM audio chunks in real time. HTTP streaming
 requires both `"stream": true` and `"response_format": "pcm"`:

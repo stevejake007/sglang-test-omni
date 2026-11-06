@@ -156,24 +156,10 @@ Reference encodes are cached (LRU) and coalesced into batched codec calls, so re
 
 ### Streaming
 
-Set `"stream": true` and `"response_format": "pcm"` to receive raw 48 kHz
-mono PCM chunks in real time. Pipe the stream through `ffmpeg` when you want a
-playable WAV file:
+For the shared streaming request, response contract, and examples, see
+[TTS Model Usage — 2. Streaming](../basic_usage/tts.md#2-streaming).
 
-```bash
-curl -N -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5",
-    "voice": "default",
-    "input": "Get the trust fund to the bank early.",
-    "ref_audio": "https://huggingface.co/datasets/zhaochenyang20/seed-tts-eval-mini/resolve/main/en/prompt-wavs/common_voice_en_10119832.wav",
-    "ref_text": "We asked over twenty different people, and they all said it was his.",
-    "stream": true,
-    "response_format": "pcm"
-  }' \
-  | ffmpeg -f s16le -ar 48000 -ac 1 -i pipe:0 output_stream.wav
-```
+MOSS-TTS Local streams raw 48 kHz mono PCM.
 
 ### Duration Control
 

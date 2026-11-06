@@ -135,32 +135,11 @@ with open("output.wav", "wb") as f:
 
 ### Streaming
 
-Streaming lets you play audio while generation is still running, which cuts time-to-first-audio. dots.tts streams raw 48 kHz PCM: the AudioVAE decoder emits a waveform chunk every few latent patches instead of waiting for the whole utterance.
+For the shared streaming request, response contract, and examples, see
+[TTS Model Usage — 2. Streaming](../basic_usage/tts.md#2-streaming).
 
-Set `"stream": true` and `"response_format": "pcm"`:
-
-```bash
-curl -N -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "dots-studio/dots.tts-mf",
-    "input": "Get the trust fund to the bank early.",
-    "references": [{
-      "audio_path": "docs/_static/audio/female-voice.wav",
-      "text": "By repeating what students say, teachers can demonstrate that they are listening. By extending what students say."
-    }],
-    "stream": true,
-    "response_format": "pcm",
-    "seed": 42
-  }' \
-  --output output.pcm
-```
-
-The `-N` flag disables curl's output buffering so chunks are written as they arrive. The response is 16-bit mono PCM at 48 kHz with no in-band JSON framing; convert it with:
-
-```bash
-ffmpeg -f s16le -ar 48000 -ac 1 -i output.pcm output.wav
-```
+dots.tts streams raw 48 kHz PCM: the AudioVAE decoder emits a waveform chunk
+every few latent patches instead of waiting for the whole utterance.
 
 ### Request parameters
 

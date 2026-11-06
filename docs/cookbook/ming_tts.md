@@ -108,33 +108,18 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 ### Streaming
 
-Streaming returns headerless mono signed 16-bit little-endian PCM (`s16le`) at 44.1 kHz with
-`Content-Type: audio/pcm`. The `X-Sample-Rate`, `X-Channels`, and `X-Bit-Depth` headers report the
-sample rate, channel count, and bit depth; HTTP EOF ends the stream.
+For the shared streaming request, response contract, and examples, see
+[TTS Model Usage — 2. Streaming](../basic_usage/tts.md#2-streaming).
+
+Ming-Omni-TTS streams mono signed 16-bit little-endian PCM at 44.1 kHz.
 
 Ming AudioVAE uses separate initial and steady cadence settings. Its first non-terminal call
 buffers `stages.audio_decode.factory.initial_chunk_patches` latent patches and emits no PCM; a
 later call supplies the right-hand context needed to emit that initial group. Subsequent calls
 consume `steady_chunk_patches` at a time. The provided configuration uses two initial patches and
-four steady patches, and the terminal step flushes any remainder. Pipe the response to `ffplay`
-to play it during generation:
+four steady patches, and the terminal step flushes any remainder.
 
 Streaming AudioVAE automatically uses Triton BTH upsampling when Triton is available and the input is a non-empty CUDA BF16 BTH tensor with non-negative strides; other streaming inputs use the existing PyTorch upsampler, and non-streaming AudioVAE decode is unchanged.
-
-```bash
-curl -sS --fail --no-buffer -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "ming-omni-tts",
-    "input": "SGLang-Omni supports streaming speech generation.",
-    "stream": true,
-    "response_format": "pcm"
-  }' \
-  | ffplay -nodisp -autoexit -f s16le -ar 44100 -ac 1 -
-```
-
-To save the raw stream instead, use `--output output.pcm`. The file has no WAV header; convert it
-with `ffmpeg -f s16le -ar 44100 -ac 1 -i output.pcm output.wav`.
 
 ## Generation Parameters
 
