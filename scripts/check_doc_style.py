@@ -25,6 +25,7 @@ TOCTREE_EXEMPTIONS = {
     "design/refactor_rfc.md": "Internal refactoring proposal, outside the user manual.",
     "developer_reference/mlx.md": "Excluded redirect; the published page is mlx/index.md.",
     "get_started/apiserver_quickstart.md": "Linked from other pages, outside the sidebar.",
+    "mlx/long_audio.md": "Linked from mlx/index.md, outside the sidebar.",
     "basic_usage/python_router.md": "Retained until the Python router is removed separately.",
 }
 TEXT_PRESENTATION_SELECTOR = "\ufe0e"

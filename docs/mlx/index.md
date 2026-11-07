@@ -1,11 +1,5 @@
 # MLX Path
 
-```{toctree}
-:hidden:
-
-long_audio
-```
-
 Rules for Apple Silicon work. They write down what the native runtime PRs under
 [#2537](https://github.com/sgl-project/sglang-omni/issues/2537) already do.
 
