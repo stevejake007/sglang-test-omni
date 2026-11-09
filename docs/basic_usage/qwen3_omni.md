@@ -1,24 +1,17 @@
-# Omni Model Usage
+# Qwen3-Omni
 
-This guide uses [Qwen3-Omni](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) as an example omni model with SGLang-Omni and the OpenAI-compatible API. Qwen3-Omni supports multi-modal input (text, image, audio) and can produce text-only or text + audio output depending on the mode.
+[Qwen3-Omni](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) is a multi-modal model
+that accepts text, image, audio, and video input and can produce text-only or text + audio output.
+
+This page covers what is specific to Qwen3-Omni: the two serving modes, the speech
+pipeline's latency and stage controls, realtime sessions, and the quantized
+checkpoints. Request construction — media carriers, `modalities`, speech output,
+streaming, and error handling — is shared by every omni model and lives in
+[Omni Model Usage](omni.md).
 
 ## Prerequisites
 
 Install `sglang-omni` by following [Installation](../get_started/installation.md).
-
-## Server Readiness
-
-Before it reports ready, the server sends itself a chat request with a small
-image, one second of audio and a short instruction (text and audio output in
-speech mode, text output in text-only mode, at most 8 new tokens from each
-stage that generates tokens), once per replica of its most
-replicated process, one after another, so that every replica serves one.
-`/health` returns 503 with status `starting` until these requests have passed
-through every stage, so the one-time kernel builds of that request path happen
-before the first user request. Inputs of other shapes, such as video or a large
-concurrent batch, can still build a kernel variant on first use. A failed
-warmup stops the server. `SGLANG_OMNI_WARMUP_TIMEOUT` (seconds, default 600)
-bounds each request, and `--skip-server-warmup` reports ready without them.
 
 ## Text-Only Mode
 
@@ -52,150 +45,6 @@ sgl-omni serve \
   --config examples/configs/qwen3_omni_mmsu.yaml \
   --text-only \
   --port 8008
-```
-
-### Image and Text Input
-
-Send an image with a text question to get a text response.
-
-**cURL**
-
-```bash
-curl -X POST http://localhost:8008/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-omni",
-    "messages": [{"role": "user", "content": "How many cars are there in the picture?"}],
-    "images": ["tests/data/cars.jpg"],
-    "modalities": ["text"],
-    "max_tokens": 16
-  }'
-```
-
-**Python**
-
-```python
-import requests
-
-resp = requests.post(
-    "http://localhost:8008/v1/chat/completions",
-    json={
-        "model": "qwen3-omni",
-        "messages": [{"role": "user", "content": "How many cars are there in the picture?"}],
-        "images": ["tests/data/cars.jpg"],
-        "modalities": ["text"],
-        "max_tokens": 16,
-    },
-)
-resp.raise_for_status()
-result = resp.json()
-print(result["choices"][0]["message"]["content"])
-```
-
-Messages may also use OpenAI content parts: `text`, `image_url`, `video_url`,
-`audio_url`, and `input_audio` (base64 `wav` or `mp3`). A `url` can be an
-HTTP(S) URL, a data URL, or a local path visible to the server:
-
-```json
-{
-  "role": "user",
-  "content": [
-    {"type": "image_url", "image_url": {"url": "tests/data/cars.jpg"}},
-    {"type": "text", "text": "How many cars are there in the picture?"}
-  ]
-}
-```
-
-Media parts keep their message and their place in it across conversation turns.
-With the top-level `images`, `videos`, or `audios` fields as well, the top-level
-media follow the parts of the final user message. Any other part type is
-rejected with a 400. The optional `detail` field does not override the model's
-image preprocessing settings.
-
-### Audio and Image Input
-
-Send an audio file together with an image. The audio contains the spoken question ("How many cars are there in the picture?") and the model answers based on both inputs.
-
-> **Note:** Set `"content": ""` (empty string) on the user message when all semantic content comes from audio, video, or images rather than text.
-
-**cURL**
-
-```bash
-curl -X POST http://localhost:8008/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-omni",
-    "messages": [{"role": "user", "content": ""}],
-    "images": ["tests/data/cars.jpg"],
-    "audios": ["tests/data/query_to_cars.wav"],
-    "modalities": ["text"],
-    "max_tokens": 16
-  }'
-```
-
-**Python**
-
-```python
-import requests
-
-resp = requests.post(
-    "http://localhost:8008/v1/chat/completions",
-    json={
-        "model": "qwen3-omni",
-        "messages": [{"role": "user", "content": ""}],
-        "images": ["tests/data/cars.jpg"],
-        "audios": ["tests/data/query_to_cars.wav"],
-        "modalities": ["text"],
-        "max_tokens": 16,
-    },
-)
-resp.raise_for_status()
-result = resp.json()
-print(result["choices"][0]["message"]["content"])
-```
-
-### Video and Audio Input
-
-Send a video with a spoken audio question. The model watches the video, hears the question, and responds with text.
-
-The Video-AMME CI benchmark uses this same modality combination: video input
-plus a spoken question/options WAV, with only routing and answer-format
-instructions in the text message.
-
-**cURL**
-
-```bash
-curl -X POST http://localhost:8008/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-omni",
-    "messages": [{"role": "user", "content": ""}],
-    "videos": ["tests/data/draw.mp4"],
-    "audios": ["tests/data/query_to_draw.wav"],
-    "modalities": ["text"],
-    "max_tokens": 16
-  }'
-```
-
-**Python**
-
-```python
-import requests
-
-resp = requests.post(
-    "http://localhost:8008/v1/chat/completions",
-    json={
-        "model": "qwen3-omni",
-        "messages": [{"role": "user", "content": ""}],
-        "videos": ["tests/data/draw.mp4"],
-        "audios": ["tests/data/query_to_draw.wav"],
-        "modalities": ["text"],
-        "max_tokens": 16,
-    },
-)
-resp.raise_for_status()
-result = resp.json()
-print(result["choices"][0]["message"]["content"])
 ```
 
 ## Speech Mode
@@ -538,7 +387,7 @@ select text-only output or text plus streamed PCM16 audio playback.
 
 SGLang-Omni can also serve native FP8 Qwen3-Omni checkpoints. Native FP8 uses
 the checkpoint quantization config when loading the thinker and talker AR stages,
-while keeping the same Qwen3-Omni request format shown below.
+while keeping the same Qwen3-Omni request format.
 
 For one-GPU H100/H20 colocated launch, use the FP8 colocated config:
 
@@ -595,164 +444,14 @@ AutoRound quantization provides:
 - **~25% memory reduction** compared to FP8 (from ~40GB to ~30GB)
 - **Accuracy at ultra-low bit widths**: maintains high accuracy even at 2–4 bits, requiring minimal tuning effort thanks to its sign-gradient descent optimization.
 
-### Image and Text Input
+## Sending Requests
 
-Send an image with a text question to get both text and audio responses. Set `"modalities": ["text", "audio"]` to enable audio output.
+Build requests against the shared contract in [Omni Model Usage](omni.md):
+media carriers and content parts, the `content: ""` rule, speech output, and
+streaming. Qwen3-Omni specifics live in
+[Qwen3-Omni Cookbook](../cookbook/qwen3_omni.md):
 
-**cURL**
-
-```bash
-curl -X POST http://localhost:8008/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-omni",
-    "messages": [{"role": "user", "content": "How many cars are there in the picture?"}],
-    "images": ["tests/data/cars.jpg"],
-    "modalities": ["text", "audio"],
-    "max_tokens": 16
-  }'
-```
-
-**Python**
-
-```python
-import base64
-import requests
-
-resp = requests.post(
-    "http://localhost:8008/v1/chat/completions",
-    json={
-        "model": "qwen3-omni",
-        "messages": [{"role": "user", "content": "How many cars are there in the picture?"}],
-        "images": ["tests/data/cars.jpg"],
-        "modalities": ["text", "audio"],
-        "max_tokens": 16,
-    },
-)
-resp.raise_for_status()
-result = resp.json()
-choice = result["choices"][0]["message"]
-
-print(choice["content"])
-
-audio_data = base64.b64decode(choice["audio"]["data"])
-with open("output.wav", "wb") as f:
-    f.write(audio_data)
-```
-
-### Audio and Image Input
-
-Send an audio file with an image. The model hears the spoken question and sees the image, then responds with both text and audio.
-
-**cURL**
-
-```bash
-curl -X POST http://localhost:8008/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-omni",
-    "messages": [{"role": "user", "content": ""}],
-    "images": ["tests/data/cars.jpg"],
-    "audios": ["tests/data/query_to_cars.wav"],
-    "modalities": ["text", "audio"],
-    "max_tokens": 16
-  }'
-```
-
-**Python**
-
-```python
-import base64
-import requests
-
-resp = requests.post(
-    "http://localhost:8008/v1/chat/completions",
-    json={
-        "model": "qwen3-omni",
-        "messages": [{"role": "user", "content": ""}],
-        "images": ["tests/data/cars.jpg"],
-        "audios": ["tests/data/query_to_cars.wav"],
-        "modalities": ["text", "audio"],
-        "max_tokens": 16,
-    },
-)
-resp.raise_for_status()
-result = resp.json()
-choice = result["choices"][0]["message"]
-
-print(choice["content"])
-
-audio_data = base64.b64decode(choice["audio"]["data"])
-with open("output.wav", "wb") as f:
-    f.write(audio_data)
-```
-
-### Video and Audio Input
-
-Send a video with a spoken audio question. The model watches the video, hears the question, and responds with both text and audio.
-
-**cURL**
-
-```bash
-curl -X POST http://localhost:8008/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-omni",
-    "messages": [{"role": "user", "content": ""}],
-    "videos": ["tests/data/draw.mp4"],
-    "audios": ["tests/data/query_to_draw.wav"],
-    "modalities": ["text", "audio"],
-    "max_tokens": 16
-  }'
-```
-
-**Python**
-
-```python
-import base64
-import requests
-
-resp = requests.post(
-    "http://localhost:8008/v1/chat/completions",
-    json={
-        "model": "qwen3-omni",
-        "messages": [{"role": "user", "content": ""}],
-        "videos": ["tests/data/draw.mp4"],
-        "audios": ["tests/data/query_to_draw.wav"],
-        "modalities": ["text", "audio"],
-        "max_tokens": 16,
-    },
-)
-resp.raise_for_status()
-result = resp.json()
-choice = result["choices"][0]["message"]
-
-print(choice["content"])
-
-audio_data = base64.b64decode(choice["audio"]["data"])
-with open("output.wav", "wb") as f:
-    f.write(audio_data)
-```
-
-## Request Parameters
-
-The table below lists all parameters accepted by the `/v1/chat/completions` endpoint for Qwen3-Omni.
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `model` | string | `null` | Model identifier |
-| `messages` | list | (required) | List of chat messages, each with `role` and `content` |
-| `modalities` | list | `["text"]` | Output modalities: `["text"]` for text only, `["text", "audio"]` for text and audio |
-| `images` | list | `null` | List of image file paths (local paths or URLs) |
-| `audios` | list | `null` | List of audio file paths (local paths or URLs) |
-| `videos` | list | `null` | List of video file paths (local paths or URLs) |
-| `max_tokens` | int | `null` | Maximum number of tokens to generate |
-| `max_completion_tokens` | int | `null` | OpenAI-compatible alias for `max_tokens` |
-| `temperature` | float | `null` | Sampling temperature |
-| `top_p` | float | `null` | Top-p sampling |
-| `top_k` | int | `null` | Top-k sampling |
-| `repetition_penalty` | float | `null` | Repetition penalty |
-| `seed` | int | `null` | Random seed for reproducibility |
-| `stream` | bool | `false` | Enable streaming via SSE |
-| `audio` | dict | `null` | Speech response format configuration, e.g. `{"format": "wav"}` |
-| `stage_sampling` | dict | `null` | Per-stage sampling overrides, e.g. `{"thinker": {"temperature": 0.8}}` |
+- Supported input and output combinations and their minimal request bodies:
+  [Input / Output Modalities](../cookbook/qwen3_omni.md#input-output-modalities).
+- Thinker and talker sampling defaults, including `talker_*` controls for speech
+  output: [Sampling Parameters](../cookbook/qwen3_omni.md#sampling-parameters).
