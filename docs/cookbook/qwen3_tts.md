@@ -8,6 +8,12 @@ playback sample rate. SGLang-Omni serves two checkpoints — `0.6B` and `1.7B` �
 `preprocessing → tts_engine → vocoder` pipeline and the OpenAI-compatible `/v1/audio/speech`
 endpoint.
 
+Shared HTTP, Python, and streaming usage for every TTS model — launch, non-streaming
+requests, raw and SSE streaming, batch, WebSocket, uploaded voices, and the full
+request-parameter list — lives in [TTS Model Usage](../basic_usage/tts.md). This cookbook
+covers the Qwen3-TTS checkpoints, their setup, and the behavior that differs from that
+shared baseline.
+
 ## Prerequisites
 
 Install `sglang-omni` by following [Installation](../get_started/installation.md).
@@ -353,50 +359,18 @@ Qwen3-TTS Base checkpoints require a reference clip. Text-only requests are supp
 
 ### Voice Cloning
 
+Qwen3-TTS Base clones a speaker from one reference clip. The shared request shape —
+server launch, `curl`, Python, and the streaming variant — is in
+[Qwen3-TTS Base voice cloning](../basic_usage/tts.md#qwen3-tts-base-voice-cloning).
+What follows is specific to this model.
+
 The `references` field accepts `audio_path` (a local path or HTTP URL) and `text` (the
 transcript of that clip). Supplying the transcript enables in-context-learning (ICL) mode and
 materially improves cloning quality; omitting it falls back to speaker-embedding (x-vector)
 mode.
 
-```bash
-curl -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
-    "voice": "default",
-    "input": "SGLang-Omni is a great project!",
-    "references": [{
-      "audio_path": "https://huggingface.co/datasets/zhaochenyang20/seed-tts-eval-mini/resolve/main/en/prompt-wavs/common_voice_en_10119832.wav",
-      "text": "We asked over twenty different people, and they all said it was his."
-    }]
-  }' \
-  --output output.wav
-```
-
 `ref_audio` and `ref_text` are accepted as shorthand for `references[0].audio_path` and
 `references[0].text`.
-
-**Python**
-
-```python
-import requests
-
-resp = requests.post(
-    "http://localhost:8000/v1/audio/speech",
-    json={
-        "model": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
-        "voice": "default",
-        "input": "Get the trust fund to the bank early.",
-        "references": [{
-            "audio_path": "https://huggingface.co/datasets/zhaochenyang20/seed-tts-eval-mini/resolve/main/en/prompt-wavs/common_voice_en_10119832.wav",
-            "text": "We asked over twenty different people, and they all said it was his.",
-        }],
-    },
-)
-resp.raise_for_status()
-with open("output.wav", "wb") as f:
-    f.write(resp.content)
-```
 
 Non-streaming responses include `X-Finish-Reason: stop` after codec EOS or
 `X-Finish-Reason: length` when generation reaches `max_new_tokens`. A `length`
@@ -506,30 +480,10 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 ### Streaming
 
-Set `"stream": true` to receive raw audio chunks in real time. `stream_format` defaults to `"audio"`, and `response_format` defaults to `"wav"`. Set `response_format="pcm"` for raw PCM bytes:
-
-```bash
-curl -N -X POST http://localhost:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
-    "voice": "default",
-    "input": "Get the trust fund to the bank early.",
-    "references": [{
-      "audio_path": "https://huggingface.co/datasets/zhaochenyang20/seed-tts-eval-mini/resolve/main/en/prompt-wavs/common_voice_en_10119832.wav",
-      "text": "We asked over twenty different people, and they all said it was his."
-    }],
-    "stream": true,
-    "response_format": "pcm"
-  }' \
-  --output output.pcm
-```
-
-Streaming returns `audio/pcm` 16-bit mono PCM bytes with sample-rate metadata in
-the response headers. See the [Higgs TTS cookbook](../cookbook/higgs_tts.md#streaming)
-for a full Python raw PCM consumer.
-
-Omit `response_format` or set it to `"wav"` for raw WAV streaming with one header followed by PCM chunks. Set `stream_format="sse"` for SSE events, which can omit `stream=true`. Every HTTP mode defaults to WAV; an explicit `response_format` overrides that default.
+Shared streaming — raw WAV and PCM responses, the Python PCM consumer, SSE framing,
+and the `stream` / `stream_format` / `response_format` interaction — is documented in
+[TTS Model Usage](../basic_usage/tts.md#streaming). This section covers what Qwen3-TTS
+adds on top of it.
 
 All three task types (Base/reference-cloning, CustomVoice and VoiceDesign) use
 true incremental codec and vocoder streaming, for both this HTTP endpoint and
@@ -632,6 +586,10 @@ only the first chunk.
 
 ## Generation Parameters
 
+Defaults for this model. Every field is also listed, with its type and its
+endpoint-wide behavior, in the
+[TTS Model Usage parameter table](../basic_usage/tts.md#request-parameters).
+
 | Parameter | Default | Notes |
 |---|---|---|
 | `model` | served model | Served model identifier |
@@ -680,16 +638,10 @@ Both sizes support buffered speech, batch requests, incremental HTTP audio outpu
 
 **Eric/Dylan language behavior:** For both sizes, `language: Auto` selects Eric's Sichuan dialect token or Dylan's Beijing dialect token. An explicit language takes precedence: `language: Chinese` keeps the Chinese language token. This preserves existing SGLang-Omni behavior and differs from the QwenLM/Qwen3-TTS Python wrapper (`qwen-tts` 0.1.1), which also selects dialect tokens for `Chinese`. This is a conditioning choice, not a guarantee that the speaker's accent disappears.
 
-Start the 1.7B checkpoint with its matching config:
-
-```bash
-sgl-omni serve \
-  --model-path Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice \
-  --config examples/configs/qwen3_tts_1_7b_customvoice.yaml \
-  --port 8000
-```
-
-Then select a built-in speaker in the request. For 0.6B, use its model/config pair from the table and omit `instructions`.
+Start the 1.7B checkpoint with its matching config as shown in
+[Start a TTS Server](../basic_usage/tts.md#start-a-tts-server), then select a built-in
+speaker in the request. For 0.6B, use its model/config pair from the table and omit
+`instructions`.
 
 ```bash
 curl -X POST http://localhost:8000/v1/audio/speech \
