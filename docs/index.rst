@@ -193,6 +193,7 @@ Community & Resources
    :maxdepth: 1
    :caption: General Usage
 
+   basic_usage/omni.md
    basic_usage/qwen3_omni.md
    basic_usage/native_chat_stage.md
    basic_usage/audio_translations.md
