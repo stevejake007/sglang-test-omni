@@ -19,53 +19,7 @@ MODEL_PATH="$(
 )"
 ```
 
-### Ascend NPU graph execution
-
-See [Qwen3-ASR graph execution on Ascend NPU](../other_platforms/installation_npu.md#qwen3-asr-graph-execution) for queue settings and runtime restrictions.
-
-After following the [Ascend NPU installation guide](../other_platforms/installation_npu.md), start the server with the shared example.
-
-```bash
-sgl-omni serve --config examples/configs/qwen3_asr_ascend910.yaml --port 8000
-```
-
-The example defaults to Qwen3-ASR-1.7B. To use 0.6B, add `--model-path Qwen/Qwen3-ASR-0.6B`. For a local checkpoint, pass its path with `--model-path` and the model identifier used in transcription requests with `--model-name`.
-
-This example uses eager LM decode and prefill to avoid truncated outputs observed in [targeted transcription checks on Ascend910_9362](https://github.com/sgl-project/sglang-omni/pull/3199#discussion_r4510634009), while retaining the default encoder graphs.
-
-<a id="apple-silicon-torch-mps"></a>
-
-### Apple Silicon
-
-Qwen3-ASR runs on Apple Silicon through a Torch/MPS compatibility path. Install
-with the [Apple Silicon installer](../other_platforms/installation_apple_silicon.md)
-and follow its environment-activation and `DYLD_LIBRARY_PATH` steps; TorchCodec
-needs Homebrew's keg-only FFmpeg libraries on the path before the server starts.
-
-Pass an official PyTorch checkpoint such as `Qwen/Qwen3-ASR-0.6B`. The path uses
-one device (`tp_size=1`), greedy decoding, and the eager `torch_native`/`sdpa`
-profile:
-
-```bash
-export DYLD_LIBRARY_PATH="$(brew --prefix ffmpeg@7)/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
-
-sgl-omni serve \
-  --model-path Qwen/Qwen3-ASR-0.6B \
-  --model-name Qwen/Qwen3-ASR-0.6B \
-  --asr.engine.max_running_requests 1 \
-  --port 8000
-```
-
-Radix caching, chunked prefill, and CUDA graphs are not used by this path. The
-HTTP and SSE transcription interfaces below are the same as on CUDA;
-`stream=true` provides pseudo-streaming transcript deltas as tokens are decoded.
-The Apple path applies `repetition_penalty` but does not provide other sampling
-penalties or token logprobs yet.
-
-The initial Torch MPS profile is bounded to a 2,048-token KV budget, uses
-`audio_chunking.max_audio_clip_s` for non-streaming chunks (30 seconds by
-default), and caps native/whole-upload requests at 60 seconds. Values above
-that qualified limit are rejected.
+Platform specifics are not part of the endpoint description and come after the usage sections below: [Ascend NPU](#ascend-npu-graph-execution) and [Apple Silicon](#apple-silicon).
 
 ## Server Configuration
 
@@ -520,3 +474,53 @@ The limits shared with the other ASR models are listed in
   `max_native_clip_s` (1,200 s) on CUDA and 60 seconds on Torch MPS. Use
   `stream=false` for longer uploads.
 - DFlash rejects `repetition_penalty` values other than `1.0` with HTTP 400.
+
+## Other Platforms
+
+### Ascend NPU graph execution
+
+See [Qwen3-ASR graph execution on Ascend NPU](../other_platforms/installation_npu.md#qwen3-asr-graph-execution) for queue settings and runtime restrictions.
+
+After following the [Ascend NPU installation guide](../other_platforms/installation_npu.md), start the server with the shared example.
+
+```bash
+sgl-omni serve --config examples/configs/qwen3_asr_ascend910.yaml --port 8000
+```
+
+The example defaults to Qwen3-ASR-1.7B. To use 0.6B, add `--model-path Qwen/Qwen3-ASR-0.6B`. For a local checkpoint, pass its path with `--model-path` and the model identifier used in transcription requests with `--model-name`.
+
+This example uses eager LM decode and prefill to avoid truncated outputs observed in [targeted transcription checks on Ascend910_9362](https://github.com/sgl-project/sglang-omni/pull/3199#discussion_r4510634009), while retaining the default encoder graphs.
+
+<a id="apple-silicon-torch-mps"></a>
+
+### Apple Silicon
+
+Qwen3-ASR runs on Apple Silicon through a Torch/MPS compatibility path. Install
+with the [Apple Silicon installer](../other_platforms/installation_apple_silicon.md)
+and follow its environment-activation and `DYLD_LIBRARY_PATH` steps; TorchCodec
+needs Homebrew's keg-only FFmpeg libraries on the path before the server starts.
+
+Pass an official PyTorch checkpoint such as `Qwen/Qwen3-ASR-0.6B`. The path uses
+one device (`tp_size=1`), greedy decoding, and the eager `torch_native`/`sdpa`
+profile:
+
+```bash
+export DYLD_LIBRARY_PATH="$(brew --prefix ffmpeg@7)/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+
+sgl-omni serve \
+  --model-path Qwen/Qwen3-ASR-0.6B \
+  --model-name Qwen/Qwen3-ASR-0.6B \
+  --asr.engine.max_running_requests 1 \
+  --port 8000
+```
+
+Radix caching, chunked prefill, and CUDA graphs are not used by this path. The
+HTTP and SSE transcription interfaces below are the same as on CUDA;
+`stream=true` provides pseudo-streaming transcript deltas as tokens are decoded.
+The Apple path applies `repetition_penalty` but does not provide other sampling
+penalties or token logprobs yet.
+
+The initial Torch MPS profile is bounded to a 2,048-token KV budget, uses
+`audio_chunking.max_audio_clip_s` for non-streaming chunks (30 seconds by
+default), and caps native/whole-upload requests at 60 seconds. Values above
+that qualified limit are rejected.
