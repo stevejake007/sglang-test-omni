@@ -6,7 +6,7 @@ Qwen3-ASR does not serve `/v1/audio/translations`; that route returns HTTP 400. 
 
 ## Prerequisites
 
-Install `sglang-omni` using the [CUDA installation](../get_started/installation.md) or [Apple Silicon installation](../other_platforms/installation_apple_silicon.md). For Ascend NPU, see [platform configuration](#ascend-npu-graph-execution).
+Install `sglang-omni` using the [CUDA installation](../get_started/installation.md) or [Apple Silicon installation](../other_platforms/installation_apple_silicon.md).
 
 Download the model:
 
@@ -19,7 +19,7 @@ MODEL_PATH="$(
 )"
 ```
 
-## Start the Server
+## Server Configuration
 
 Start the default CUDA server with the downloaded checkpoint:
 
@@ -30,7 +30,56 @@ sgl-omni serve \
   --port 8000
 ```
 
-For Apple Silicon, Ascend NPU, and GPU-specific profiles, see [platform configuration](#platform-configuration) and [server configuration](#server-configuration).
+Qwen3-ASR runs a single ASR stage on one GPU. Its default `auto` dtype follows
+the checkpoint configuration (BF16 for Qwen3-ASR-1.7B); pass
+`--asr.factory.dtype float16` to force FP16.
+Async decode is enabled by default for all decode batch sizes, allowing the
+shared one-step-lookahead path to overlap host-side result processing with the
+next GPU decode forward even for a single request. Use
+`--asr.factory.enable_async_decode false` to disable it, or tune the crossover
+with `--asr.factory.async_decode_min_batch_size`.
+The request builders also use the shared LM prefill-admission gate: prefill
+starts when 16 built requests are ready or after the oldest ready request waits
+40 ms. Once request-build work drains, a ready prefill is released immediately
+if decode is idle; while decode is active, it continues coalescing until the
+same request target or deadline.
+
+For a single 24 GB RTX 4090 (SM89), use the checked-in consumer profile:
+
+```bash
+sgl-omni serve \
+  --config examples/configs/qwen3_asr_rtx4090.yaml \
+  --port 8000
+```
+
+This qualified profile keeps the model in BF16, limits the stage to 16 running
+requests, and sets `mem_fraction_static` to `0.65`. Its bounds are specific to
+the validated RTX 4090 layout; use the default configuration or a separately
+qualified profile on other GPU architectures.
+
+For a single 32 GB RTX 5090, use:
+
+```bash
+sgl-omni serve \
+  --config examples/configs/qwen3_asr_rtx5090.yaml \
+  --port 8000
+```
+
+This profile uses BF16, allows up to 16 running requests, and sets
+`mem_fraction_static=0.65`. See the
+[RTX 5090 benchmark report](https://github.com/sgl-project/sglang-omni/issues/1212)
+for results measured on an earlier release.
+
+For example, force synchronous decode when comparing modes:
+
+```bash
+sgl-omni serve \
+  --model-path Qwen/Qwen3-ASR-1.7B \
+  --asr.factory.enable_async_decode false \
+  --port 8000
+```
+
+Apple Silicon and Ascend NPU launch different configurations; see [Platform Configuration](#platform-configuration).
 
 ## Choose a Transcription Method
 
@@ -370,7 +419,7 @@ sgl-omni serve \
 ```
 
 Radix caching, chunked prefill, and CUDA graphs are not used by this path. The
-HTTP and SSE transcription interfaces below are the same as on CUDA;
+HTTP and SSE transcription interfaces above are the same as on CUDA;
 `stream=true` provides pseudo-streaming transcript deltas as tokens are decoded.
 The Apple path applies `repetition_penalty` but does not provide other sampling
 penalties or token logprobs yet.
@@ -379,57 +428,6 @@ The initial Torch MPS profile is bounded to a 2,048-token KV budget, uses
 `audio_chunking.max_audio_clip_s` for non-streaming chunks (30 seconds by
 default), and caps native/whole-upload requests at 60 seconds. Values above
 that qualified limit are rejected.
-
-## Server Configuration
-
-Qwen3-ASR runs a single ASR stage on one GPU. Its default `auto` dtype follows
-the checkpoint configuration (BF16 for Qwen3-ASR-1.7B); pass
-`--asr.factory.dtype float16` to force FP16.
-Async decode is enabled by default for all decode batch sizes, allowing the
-shared one-step-lookahead path to overlap host-side result processing with the
-next GPU decode forward even for a single request. Use
-`--asr.factory.enable_async_decode false` to disable it, or tune the crossover
-with `--asr.factory.async_decode_min_batch_size`.
-The request builders also use the shared LM prefill-admission gate: prefill
-starts when 16 built requests are ready or after the oldest ready request waits
-40 ms. Once request-build work drains, a ready prefill is released immediately
-if decode is idle; while decode is active, it continues coalescing until the
-same request target or deadline.
-
-For a single 24 GB RTX 4090 (SM89), use the checked-in consumer profile:
-
-```bash
-sgl-omni serve \
-  --config examples/configs/qwen3_asr_rtx4090.yaml \
-  --port 8000
-```
-
-This qualified profile keeps the model in BF16, limits the stage to 16 running
-requests, and sets `mem_fraction_static` to `0.65`. Its bounds are specific to
-the validated RTX 4090 layout; use the default configuration or a separately
-qualified profile on other GPU architectures.
-
-For a single 32 GB RTX 5090, use:
-
-```bash
-sgl-omni serve \
-  --config examples/configs/qwen3_asr_rtx5090.yaml \
-  --port 8000
-```
-
-This profile uses BF16, allows up to 16 running requests, and sets
-`mem_fraction_static=0.65`. See the
-[RTX 5090 benchmark report](https://github.com/sgl-project/sglang-omni/issues/1212)
-for results measured on an earlier release.
-
-For example, force synchronous decode when comparing modes:
-
-```bash
-sgl-omni serve \
-  --model-path Qwen/Qwen3-ASR-1.7B \
-  --asr.factory.enable_async_decode false \
-  --port 8000
-```
 
 ## DFlash speculative decoding
 
