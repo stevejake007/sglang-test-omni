@@ -89,18 +89,6 @@ Apple Silicon and Ascend NPU launch different configurations; see [Platform Conf
 | Receive text incrementally | [SSE transcription](#stream-transcription) | Upload a complete file before decoding starts |
 | Transcribe live audio | [Realtime WebSocket](#live-pcm-transcription) | Send PCM audio packets as they arrive |
 
-### Ascend NPU
-
-NPU DFlash supports only greedy decoding (`temperature=0`). Requests with a nonzero temperature are rejected because NPU verification uses argmax. For one Ascend device, use the BF16 eager example below. It uses the same pinned draft as the CUDA example and explicitly sets `enable_async_decode: false` to retain the validated greedy, synchronous NPU configuration. Follow the [NPU installation guide](../other_platforms/installation_npu.md) for runtime setup and [graph queue requirements](../other_platforms/installation_npu.md#qwen3-asr-graph-execution).
-
-```bash
-sgl-omni serve --config examples/configs/qwen3_asr_1_7b_dflash_npu.yaml --port 8000
-```
-
-To enable draft and target verification decode graphs, select `examples/configs/qwen3_asr_1_7b_dflash_npu_graph.yaml` instead. Its request buckets are one and two; prefill and encoder remain eager, and Torch Compile stays disabled. Keep `SGLANG_DFLASH_EAGER_DRAFT_SAMPLER` unset or `0` to capture the reduced-vocabulary draft head. These buckets describe the validated example, not a platform concurrency limit or an optimal performance setting.
-
-Both NPU examples explicitly select `ascend` for target and draft attention. Direct factory callers must supply the same engine overrides and `enable_encoder_cuda_graph=False`. Keep effective `context_length`, including the audio/text prefix and verification reserve, within the pinned causal draft's 32768-token attention window; a larger output budget or context override can exceed it. For offline serving, pass local snapshots with `--model-path` and `--asr.engine.speculative_draft_model_path`. Overlap, realtime, TP>1, quantization and longer contexts remain outside this validation.
-
 ## Transcribe Audio
 
 Send an audio file to the running server:
@@ -395,6 +383,16 @@ The example defaults to Qwen3-ASR-1.7B. To use 0.6B, add `--model-path Qwen/Qwen
 
 This example uses eager LM decode and prefill to avoid truncated outputs observed in [targeted transcription checks on Ascend910_9362](https://github.com/sgl-project/sglang-omni/pull/3199#discussion_r4510634009), while retaining the default encoder graphs.
 
+DFlash has its own validated NPU examples on the same queue setup. NPU DFlash supports only greedy decoding (`temperature=0`): requests with a nonzero temperature are rejected because NPU verification uses argmax. For one Ascend device, use the BF16 eager example, which uses the same pinned draft as the CUDA example and sets `enable_async_decode: false` to retain the validated greedy, synchronous configuration:
+
+```bash
+sgl-omni serve --config examples/configs/qwen3_asr_1_7b_dflash_npu.yaml --port 8000
+```
+
+To enable draft and target verification decode graphs, select `examples/configs/qwen3_asr_1_7b_dflash_npu_graph.yaml` instead. Its request buckets are one and two; prefill and encoder remain eager, and Torch Compile stays disabled. Keep `SGLANG_DFLASH_EAGER_DRAFT_SAMPLER` unset or `0` to capture the reduced-vocabulary draft head. These buckets describe the validated example, not a platform concurrency limit or an optimal performance setting.
+
+Both NPU examples explicitly select `ascend` for target and draft attention. Direct factory callers must supply the same engine overrides and `enable_encoder_cuda_graph=False`. Keep effective `context_length`, including the audio/text prefix and verification reserve, within the pinned causal draft's 32768-token attention window; a larger output budget or context override can exceed it. For offline serving, pass local snapshots with `--model-path` and `--asr.engine.speculative_draft_model_path`. Overlap, realtime, TP>1, quantization and longer contexts remain outside this validation.
+
 <a id="apple-silicon-torch-mps"></a>
 
 ### Apple Silicon
@@ -439,6 +437,8 @@ sgl-omni serve \
   --asr.engine.max_running_requests 8 \
   --port 8000
 ```
+
+Ascend NPU runs separate validated examples and is greedy only; see [Ascend NPU graph execution](#ascend-npu-graph-execution).
 
 DFlash serves any `temperature`. Above 0, verification accepts each drafted token with the target model's probability for it and otherwise samples from the target's remaining probabilities. ASR transcripts are confident, so sampling barely lowers acceptance: on one H100 with SeedTTS English and Chinese clips at 16 concurrent requests, each verification step committed 5.66 tokens at `temperature` 0, 5.66 at 0.7 and 5.62 at 1.0. On the same server at the default cap of 64 running requests, the speedup at 0.7 and 1.0 stayed close to its greedy speedup at every load tested, from 1 to 64 concurrent requests. DFlash retains CUDA graphs.
 
