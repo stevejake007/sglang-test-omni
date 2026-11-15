@@ -6,9 +6,9 @@ Qwen3-ASR does not serve `/v1/audio/translations`; that route returns HTTP 400. 
 
 ## Prerequisites
 
-Install `sglang-omni` using the [CUDA installation](../get_started/installation.md) or [Apple Silicon installation](../other_platforms/installation_apple_silicon.md).
-
-Download the model:
+Install `sglang-omni` by following the [CUDA installation](../get_started/installation.md)
+or [Apple Silicon installation](../other_platforms/installation_apple_silicon.md),
+then download the model:
 
 ```bash
 MODEL_REVISION=7278e1e70fe206f11671096ffdd38061171dd6e5
@@ -19,16 +19,55 @@ MODEL_PATH="$(
 )"
 ```
 
-## Server Configuration
+### Ascend NPU graph execution
 
-Start the default CUDA server with the downloaded checkpoint:
+See [Qwen3-ASR graph execution on Ascend NPU](../other_platforms/installation_npu.md#qwen3-asr-graph-execution) for queue settings and runtime restrictions.
+
+After following the [Ascend NPU installation guide](../other_platforms/installation_npu.md), start the server with the shared example.
 
 ```bash
+sgl-omni serve --config examples/configs/qwen3_asr_ascend910.yaml --port 8000
+```
+
+The example defaults to Qwen3-ASR-1.7B. To use 0.6B, add `--model-path Qwen/Qwen3-ASR-0.6B`. For a local checkpoint, pass its path with `--model-path` and the model identifier used in transcription requests with `--model-name`.
+
+This example uses eager LM decode and prefill to avoid truncated outputs observed in [targeted transcription checks on Ascend910_9362](https://github.com/sgl-project/sglang-omni/pull/3199#discussion_r4510634009), while retaining the default encoder graphs.
+
+<a id="apple-silicon-torch-mps"></a>
+
+### Apple Silicon
+
+Qwen3-ASR runs on Apple Silicon through a Torch/MPS compatibility path. Install
+with the [Apple Silicon installer](../other_platforms/installation_apple_silicon.md)
+and follow its environment-activation and `DYLD_LIBRARY_PATH` steps; TorchCodec
+needs Homebrew's keg-only FFmpeg libraries on the path before the server starts.
+
+Pass an official PyTorch checkpoint such as `Qwen/Qwen3-ASR-0.6B`. The path uses
+one device (`tp_size=1`), greedy decoding, and the eager `torch_native`/`sdpa`
+profile:
+
+```bash
+export DYLD_LIBRARY_PATH="$(brew --prefix ffmpeg@7)/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+
 sgl-omni serve \
-  --model-path "${MODEL_PATH}" \
-  --model-name Qwen/Qwen3-ASR-1.7B \
+  --model-path Qwen/Qwen3-ASR-0.6B \
+  --model-name Qwen/Qwen3-ASR-0.6B \
+  --asr.engine.max_running_requests 1 \
   --port 8000
 ```
+
+Radix caching, chunked prefill, and CUDA graphs are not used by this path. The
+HTTP and SSE transcription interfaces below are the same as on CUDA;
+`stream=true` provides pseudo-streaming transcript deltas as tokens are decoded.
+The Apple path applies `repetition_penalty` but does not provide other sampling
+penalties or token logprobs yet.
+
+The initial Torch MPS profile is bounded to a 2,048-token KV budget, uses
+`audio_chunking.max_audio_clip_s` for non-streaming chunks (30 seconds by
+default), and caps native/whole-upload requests at 60 seconds. Values above
+that qualified limit are rejected.
+
+## Server Configuration
 
 Qwen3-ASR runs a single ASR stage on one GPU. Its default `auto` dtype follows
 the checkpoint configuration (BF16 for Qwen3-ASR-1.7B); pass
@@ -42,7 +81,17 @@ The request builders also use the shared LM prefill-admission gate: prefill
 starts when 16 built requests are ready or after the oldest ready request waits
 40 ms. Once request-build work drains, a ready prefill is released immediately
 if decode is idle; while decode is active, it continues coalescing until the
-same request target or deadline.
+same request target or deadline. By default with a DFlash draft, a ready
+prefill is released as soon as request-build work drains, whether or not decode
+is active; set `--asr.factory.prefill_coalesce_after_builds_during_decode true`
+to keep coalescing during decode.
+
+```bash
+sgl-omni serve \
+  --model-path "${MODEL_PATH}" \
+  --model-name Qwen/Qwen3-ASR-1.7B \
+  --port 8000
+```
 
 For a single 24 GB RTX 4090 (SM89), use the checked-in consumer profile:
 
@@ -79,15 +128,51 @@ sgl-omni serve \
   --port 8000
 ```
 
-Apple Silicon and Ascend NPU launch different configurations; see [Platform Configuration](#platform-configuration).
+## DFlash speculative decoding
 
-## Choose a Transcription Method
+Enable experimental DFlash decoding for Qwen3-ASR-1.7B on one CUDA GPU with the pinned draft model:
 
-| Goal | Method | Audio input |
-|---|---|---|
-| Transcribe a file | [HTTP transcription](#transcribe-audio) | Upload a complete file |
-| Receive text incrementally | [SSE transcription](#stream-transcription) | Upload a complete file before decoding starts |
-| Transcribe live audio | [Realtime WebSocket](#live-pcm-transcription) | Send PCM audio packets as they arrive |
+```bash
+sgl-omni serve \
+  --config examples/configs/qwen3_asr_1_7b_dflash.yaml \
+  --asr.engine.max_running_requests 8 \
+  --port 8000
+```
+
+DFlash serves any `temperature`. Above 0, verification accepts each drafted token with the target model's probability for it and otherwise samples from the target's remaining probabilities. ASR transcripts are confident, so sampling barely lowers acceptance: on one H100 with SeedTTS English and Chinese clips at 16 concurrent requests, each verification step committed 5.66 tokens at `temperature` 0, 5.66 at 0.7 and 5.62 at 1.0. On the same server at the default cap of 64 running requests, the speedup at 0.7 and 1.0 stayed close to its greedy speedup at every load tested, from 1 to 64 concurrent requests. DFlash retains CUDA graphs.
+
+DFlash does not apply `repetition_penalty`: a request that sets it to anything other than `1.0` returns HTTP 400. To use the penalty, serve without the draft (`--asr.engine.disable_speculative_decoding true`, shown below).
+
+The draft overlaps scheduling with host work by default; add `--asr.factory.enable_async_decode false` to schedule synchronously. On one H100 with greedy decoding and the prefix cache off, overlap ran at 1.12–1.26x synchronous scheduling on 60-second recordings, 1.01–1.15x on SeedTTS English clips and 0.99–1.15x on SeedTTS Chinese clips, from 1 to 64 concurrent requests, with the same WER and CER. On short clips it also removed the draft's loss under load: at 64 concurrent requests the synchronous draft ran at 0.94x the server without a draft on English clips and 0.91x on Chinese, and the overlapped draft at 1.08x and 1.04x. Overlap runs one extra verify round per request, so the logged acceptance length drops (5.9 to 4.6 tokens on English clips), and streamed first text arrives about 2 ms later for one short clip at a time. With `--asr.factory.async_decode_min_batch_size` set above 1, a decode batch smaller than it, or a prefill after which fewer requests than it are decoding, has its result processed before the next batch is chosen; other batches overlap. At 4 on the same H100 with SeedTTS clips, first streamed text for one clip at a time matched the server without a draft, and throughput stayed within 5% of overlap except at 2 requests, where it was about 7% lower.
+
+The command above caps the server at 8 running requests. A load sweep at the default cap with the prefix cache off ([#3454](https://github.com/sgl-project/sglang-omni/pull/3454)), on one H200 over SeedTTS English clips, found that the synchronous draft gives no speedup at 32 concurrent requests and is about 10% slower at 64. To serve such a load, turn the draft off; `disable_speculative_decoding` drops every `speculative_*` key from the stage:
+
+```bash
+sgl-omni serve \
+  --config examples/configs/qwen3_asr_1_7b_dflash.yaml \
+  --asr.engine.disable_speculative_decoding true \
+  --port 8000
+```
+
+Send the form field `return_spec_tokens_details=true` to get `sglext.spec_tokens_details` (`spec_accept_length`, `spec_accept_rate`, the draft counts and the per-verify histogram) on `json` and `verbose_json` responses and on the streamed `transcript.text.done` event. Audio long enough to be transcribed in chunks returns none. `spec_accept_rate` and `spec_num_proposed_drafts` are left out when no drafts were proposed or the draft width is adaptive.
+
+Realtime transcription sessions (`--enable-realtime`) use the draft too. On one H100 at the default memory fraction and cap of 64 running requests, SeedTTS English and Chinese clips and 60-second LongLibriHeavy recordings streamed at wall-clock pace, 1 to 16 sessions at a time, with server VAD or manual commit. No session hit an error or a protocol violation, WER stayed within 0.03 percentage points of the server without the draft, and the median time to a segment's first partial was 11 to 28% lower with the synchronous draft, least at a 1000 ms decode interval, and to its final transcript 17 to 27% lower. Overlap, now the default, gave the same transcripts and median latencies as the synchronous draft on SeedTTS English sessions with server VAD, 1 and 16 at a time, with no errors or protocol violations.
+
+The draft's weights and KV cache come out of the stage's memory fraction. On an 80 GB H100 at `--mem-fraction-static 0.08`, as in the streaming cascade profiles, the KV cache holds 11,501 tokens with the draft and 20,705 without. At that fraction, 640 SeedTTS Chinese sessions, 16 at a time, ran with no errors.
+
+### Per-request plain fallback
+
+Set `asr.factory.enable_plain_fallback` to route requests that DFlash cannot serve through ordinary decoding. For example, `repetition_penalty=1.2` uses ordinary decoding, and supported sampling temperatures can still use DFlash. Requests that fit the target context but leave too little room for draft KV also use ordinary decoding.
+
+```bash
+sgl-omni serve \
+  --config examples/configs/qwen3_asr_1_7b_plain_fallback.yaml \
+  --port 8000
+```
+
+This option requires synchronous DFlash on one CUDA GPU, with prefill CUDA graphs, mixed chunks, and DP attention disabled. Decode CUDA graphs and radix caching can stay enabled. Both paths share the target model and KV pool, and each path caches its prefixes separately.
+
+When both paths have work, the scheduler gives speculative batches one to two turns per plain turn, according to their live request counts. This reduces the cost of sparse fallback traffic on speculative requests, but increases latency for plain requests. The two-turn cap prevents plain requests from starving; it does not bound wall-clock waiting time because forward durations vary. Fallback requires synchronous decoding, while Qwen3-ASR DFlash on its own overlaps draft execution by default, so even 0% fallback can cost throughput relative to the default DFlash server. Benchmark both request cohorts before enabling this option.
 
 ### Ascend NPU
 
@@ -103,18 +188,7 @@ Both NPU examples explicitly select `ascend` for target and draft attention. Dir
 
 ## Transcribe Audio
 
-Send an audio file to the running server:
-
-```bash
-curl -X POST http://localhost:8000/v1/audio/transcriptions \
-  -F model=Qwen/Qwen3-ASR-1.7B \
-  -F file=@path/to/audio.wav \
-  -F response_format=json
-```
-
-Replace `path/to/audio.wav` with a local audio file. A successful JSON response contains a `text` field with the transcript.
-
-Send one uploaded file per request. The request shape and
+Send one uploaded file to `POST /v1/audio/transcriptions`. The request shape and
 the `response_format` semantics shared with the other ASR models are documented
 in [ASR Model Usage](../basic_usage/asr.md#use-curl). Qwen3-ASR adds one detail:
 `verbose_json` reports one segment per transcribed chunk with that chunk's real
@@ -127,135 +201,7 @@ lifecycle, batching behavior, and the response formats that streaming accepts
 are shared and documented in
 [ASR Model Usage](../basic_usage/asr.md#stream-transcription). Qwen3-ASR batches
 deltas for up to 50 ms by default, and EOS or another terminal condition flushes
-any buffered text before the final transcript event. SSE starts decoding after the complete file upload; use the [WebSocket method](#live-pcm-transcription) for live audio. Streamed requests cannot be chunked, so their length is limited to 1,200 seconds on CUDA and 60 seconds on Torch MPS.
-
-## Request Parameters
-
-### Prompt and Vocabulary Biasing
-
-The endpoint accepts the shared ASR request fields (`file`, `model`,
-`language`, `response_format`, `temperature`, `stream`) described in
-[ASR Model Usage](../basic_usage/asr.md#request-parameters). Three fields are
-specific to this checkpoint:
-
-- `prompt` — vocabulary biasing, described below.
-- `repetition_penalty` — default `1.0`, valid range `(0, 2]`. Values above `1`
-  discourage repeats and can stop a runaway loop on noisy or silent audio, but
-  they also lower accuracy on clean audio, so keep `1.0` unless loops occur. The
-  DFlash draft does not apply it: a value other than `1.0` returns HTTP 400.
-- `max_new_tokens` — per-request generation cap; the default is the stage
-  limit.
-
-Biasing raises the model's preference for the supplied terms. It does not
-force them. An irrelevant list can bias the model toward words that were never spoken, which hurts accuracy. A short, relevant list works best — in testing, accuracy
-stopped improving past roughly 20 terms, while latency kept growing because
-the text is prefilled with every request.
-
-`verbose_json` uses the model adapter's verbose response schema and includes
-duration-based usage (rounded-up audio seconds) when duration probing succeeds.
-
-### Language Hints
-
-When `language` is omitted, Qwen3-ASR detects the spoken language before
-transcribing. Set an explicit hint when the language is known or automatic
-detection is unreliable for short or ambiguous audio.
-
-Qwen3-ASR accepts the following 30 explicit language codes and their canonical names:
-
-| Codes | Canonical names |
-|---|---|
-| `ar`, `yue`, `zh`, `cs`, `da`, `nl`, `en`, `fil`, `fi`, `fr` | Arabic, Cantonese, Chinese, Czech, Danish, Dutch, English, Filipino, Finnish, French |
-| `de`, `el`, `hi`, `hu`, `id`, `it`, `ja`, `ko`, `mk`, `ms` | German, Greek, Hindi, Hungarian, Indonesian, Italian, Japanese, Korean, Macedonian, Malay |
-| `fa`, `pl`, `pt`, `ro`, `ru`, `es`, `sv`, `th`, `tr`, `vi` | Persian, Polish, Portuguese, Romanian, Russian, Spanish, Swedish, Thai, Turkish, Vietnamese |
-
-For example, `language=es` and `language=Spanish` both force the prompt suffix
-`language Spanish<asr_text>`. The legacy `cn` and regional `zh-*` spellings are
-also accepted as Chinese. Unsupported language hints return HTTP 400 instead of
-silently falling back to English.
-
-The model also has ASR coverage for 22 Chinese dialects, but those dialect names
-are not supported as forced `language` hints; use `Chinese`/`zh` for them.
-
-## Long Audio
-
-For non-streaming uploads, the server splits audio into chunks of up to 30 seconds by default and joins their transcripts in order. The default upload limit is 3,600 seconds; the model's native single-request limit is 1,200 seconds. The Torch MPS path limits the whole upload to 60 seconds.
-
-Streaming requests cannot be chunked: use `stream=false` for longer uploads. `verbose_json` timestamps describe chunks, not individual words.
-
-The shared `audio_chunking` flags, the aggregate guard, and the streaming
-limit are described in [ASR Model Usage](../basic_usage/asr.md#long-audio);
-the defaults and limits below are Qwen3-ASR's.
-
-The scheduling policy is yours to tune, with dotted flags or the matching
-YAML keys:
-
-| Name | Default | Meaning |
-|---|---|---|
-| `--audio_chunking.max_audio_clip_s` | `30` | Longest clip we send to the engine in one request, and therefore the chunk length. It sits well below the model's native 1,200s on purpose: shorter chunks batch better, and the output-token budget scales with clip length on its own. Capped at the native clip limit. |
-| `--audio_chunking.max_concurrent_chunks` | `8` | How many chunks of one request run in the engine at once. A per-request cap so one long upload can't crowd out everyone else's requests. |
-| `--audio_chunking.max_total_audio_s` | `3600` | Upper limit on one upload; you get HTTP 400 above it. It bounds a single decoded waveform, not the total across uploads; that is the next knob's job. |
-| `--audio_chunking.max_concurrent_long_audio_requests` | `max_running_requests // (2 × max_concurrent_chunks)`, at least 1; `4` with the stock defaults | How many long uploads the server admits at once. A long upload past the cap gets HTTP 503 instead of queueing; short uploads are never gated. The slot is taken before the upload is decoded and returned when its chunks are done. |
-
-The last knob is the aggregate guard. Each admitted upload holds its decoded
-waveform (float32 at 16 kHz, about 230 MB for an hour) and drives up to
-`max_concurrent_chunks` engine requests, so:
-
-- decoded waveforms held at once are at most
-  `max_concurrent_long_audio_requests × max_total_audio_s × 16000 × 4` bytes
-  (decoding itself has transient peaks above that);
-- engine slots long audio can take together are at most
-  `max_concurrent_long_audio_requests × max_concurrent_chunks`.
-
-The default keeps that product at half of `--asr.engine.max_running_requests`
-so short requests always have slots left. Setting the knob explicitly to a
-value whose product reaches `max_running_requests` logs a warning at startup:
-it is not an error, since extra chunks only queue in the engine, but short
-requests then wait behind long audio whenever it is saturated. Raising
-`max_running_requests` instead also resizes CUDA graph capture, so treat it
-as the GPU capacity knob and this one as the long-audio share of it.
-
-The model properties are ClassVars on `Qwen3ASRPipelineConfig`; no
-configuration path reaches them:
-
-| Name | Value | Meaning |
-|---|---|---|
-| `allow_audio_chunking` | `true` | Qwen3-ASR transcribes an isolated chunk correctly, so chunking is on. |
-| `max_native_clip_s` | `1200` | Longest clip the model takes as one request (its native limit). Streaming cannot chunk, so this is the streaming cutoff; the Torch MPS compatibility path resolves it to its qualified 60-second cap. |
-| `min_tail_s` | `0.5` | Shortest final chunk worth transcribing; if the tail would be shorter, we move the previous cut earlier to absorb it. This matches the model's own minimum input length. |
-
-Note: Raising `audio_chunking.max_audio_clip_s` also resizes the encoder CUDA-graph bucket
-ladder, which is derived from the chunk length: a longer chunk means more and
-larger captured graphs, and their static buffers stay resident for the life of
-the server (roughly 6.6 KB per token of ladder ceiling; at 1,200s the ceiling
-is 124,800 tokens). Budget for that when you raise the flag on small GPUs.
-
-Behavior notes:
-
-- **`verbose_json` returns one segment per chunk** with the chunk's real
-  start/end timestamps -- chunk-level granularity, not word-level (Qwen3-ASR
-  does not emit word timestamps).
-- A few unusual audio formats may not expose a readable duration; we fall
-  back to the non-chunked path for those uploads.
-- Streamed responses (`stream=true`) do not support chunking yet; a stream
-  request runs as one engine request. CUDA accepts audio up to the
-  model-native `max_native_clip_s` (1,200s), while Torch MPS accepts up to its
-  qualified 60-second cap and returns HTTP 400 above that -- use `stream=false`
-  for longer uploads.
-
-## Known Limitations
-
-The limits shared with the other ASR models are listed in
-[ASR Model Usage](../basic_usage/asr.md#known-limitations). Qwen3-ASR adds:
-
-- The Torch MPS path caps both native and whole-upload requests at 60 seconds,
-  rejects longer audio, and provides no token logprobs or sampling controls
-  beyond `repetition_penalty`.
-- Streaming requests cannot chunk and run as one engine request, bounded by
-  `max_native_clip_s` (1,200 s) on CUDA and 60 seconds on Torch MPS. Use
-  `stream=false` for longer uploads.
-- Without per-request plain fallback, DFlash rejects `repetition_penalty` values other than `1.0` with HTTP 400.
-
-## Realtime Audio
+any buffered text before the final transcript event.
 
 ### Live PCM transcription
 
@@ -379,101 +325,119 @@ asyncio.run(main())
 The example assumes the upload is already mono 16 kHz PCM16; the session takes
 packets as they arrive and does not resample them.
 
-## Platform Configuration
+## Prompt and Vocabulary Biasing
 
-### Ascend NPU graph execution
+The endpoint accepts the shared ASR request fields (`file`, `model`,
+`language`, `response_format`, `temperature`, `stream`) described in
+[ASR Model Usage](../basic_usage/asr.md#request-parameters). Three fields are
+specific to this checkpoint:
 
-See [Qwen3-ASR graph execution on Ascend NPU](../other_platforms/installation_npu.md#qwen3-asr-graph-execution) for queue settings and runtime restrictions.
+- `prompt` — vocabulary biasing, described below.
+- `repetition_penalty` — default `1.0`, valid range `(0, 2]`. Values above `1`
+  discourage repeats and can stop a runaway loop on noisy or silent audio, but
+  they also lower accuracy on clean audio, so keep `1.0` unless loops occur. The
+  DFlash draft does not apply it: a value other than `1.0` returns HTTP 400.
+- `max_new_tokens` — per-request generation cap; the default is the stage
+  limit.
 
-After following the [Ascend NPU installation guide](../other_platforms/installation_npu.md), start the server with the shared example.
+Biasing raises the model's preference for the supplied terms. It does not
+force them: a term the audio does not contain will not be inserted, and an
+irrelevant list biases the model toward words that were never spoken, which
+hurts accuracy. A short, relevant list works best — in testing, accuracy
+stopped improving past roughly 20 terms, while latency kept growing because
+the text is prefilled with every request.
 
-```bash
-sgl-omni serve --config examples/configs/qwen3_asr_ascend910.yaml --port 8000
-```
+`verbose_json` uses the model adapter's verbose response schema and includes
+duration-based usage (rounded-up audio seconds) when duration probing succeeds.
 
-The example defaults to Qwen3-ASR-1.7B. To use 0.6B, add `--model-path Qwen/Qwen3-ASR-0.6B`. For a local checkpoint, pass its path with `--model-path` and the model identifier used in transcription requests with `--model-name`.
+## Language Hints
 
-This example uses eager LM decode and prefill to avoid truncated outputs observed in [targeted transcription checks on Ascend910_9362](https://github.com/sgl-project/sglang-omni/pull/3199#discussion_r4510634009), while retaining the default encoder graphs.
+When `language` is omitted, Qwen3-ASR detects the spoken language before
+transcribing. Set an explicit hint when the language is known or automatic
+detection is unreliable for short or ambiguous audio.
 
-<a id="apple-silicon-torch-mps"></a>
+Qwen3-ASR accepts the following 30 explicit language codes and their canonical names:
 
-### Apple Silicon
+| Codes | Canonical names |
+|---|---|
+| `ar`, `yue`, `zh`, `cs`, `da`, `nl`, `en`, `fil`, `fi`, `fr` | Arabic, Cantonese, Chinese, Czech, Danish, Dutch, English, Filipino, Finnish, French |
+| `de`, `el`, `hi`, `hu`, `id`, `it`, `ja`, `ko`, `mk`, `ms` | German, Greek, Hindi, Hungarian, Indonesian, Italian, Japanese, Korean, Macedonian, Malay |
+| `fa`, `pl`, `pt`, `ro`, `ru`, `es`, `sv`, `th`, `tr`, `vi` | Persian, Polish, Portuguese, Romanian, Russian, Spanish, Swedish, Thai, Turkish, Vietnamese |
 
-Qwen3-ASR runs on Apple Silicon through a Torch/MPS compatibility path. Install
-with the [Apple Silicon installer](../other_platforms/installation_apple_silicon.md)
-and follow its environment-activation and `DYLD_LIBRARY_PATH` steps; TorchCodec
-needs Homebrew's keg-only FFmpeg libraries on the path before the server starts.
+For example, `language=es` and `language=Spanish` both force the prompt suffix
+`language Spanish<asr_text>`. The legacy `cn` and regional `zh-*` spellings are
+also accepted as Chinese. Unsupported language hints return HTTP 400 instead of
+silently falling back to English.
 
-Pass an official PyTorch checkpoint such as `Qwen/Qwen3-ASR-0.6B`. The path uses
-one device (`tp_size=1`), greedy decoding, and the eager `torch_native`/`sdpa`
-profile:
+The model also has ASR coverage for 22 Chinese dialects, but those dialect names
+are not supported as forced `language` hints; use `Chinese`/`zh` for them.
 
-```bash
-export DYLD_LIBRARY_PATH="$(brew --prefix ffmpeg@7)/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+## Long Audio
 
-sgl-omni serve \
-  --model-path Qwen/Qwen3-ASR-0.6B \
-  --model-name Qwen/Qwen3-ASR-0.6B \
-  --asr.engine.max_running_requests 1 \
-  --port 8000
-```
+The current Qwen3-ASR model accepts at most 1,200 seconds of audio in one
+request, so we transcribe longer uploads in chunks: we split the audio, run
+each chunk as its own engine request, and join the transcripts back in
+order. The behavior follows two kinds of values.
 
-Radix caching, chunked prefill, and CUDA graphs are not used by this path. The
-HTTP and SSE transcription interfaces above are the same as on CUDA;
-`stream=true` provides pseudo-streaming transcript deltas as tokens are decoded.
-The Apple path applies `repetition_penalty` but does not provide other sampling
-penalties or token logprobs yet.
+The shared `audio_chunking` flags, the aggregate guard, and the streaming
+limit are described in [ASR Model Usage](../basic_usage/asr.md#long-audio);
+the defaults and limits below are Qwen3-ASR's.
 
-The initial Torch MPS profile is bounded to a 2,048-token KV budget, uses
-`audio_chunking.max_audio_clip_s` for non-streaming chunks (30 seconds by
-default), and caps native/whole-upload requests at 60 seconds. Values above
-that qualified limit are rejected.
+The scheduling policy is yours to tune, with dotted flags or the matching
+YAML keys:
 
-## DFlash speculative decoding
+| Name | Default | Meaning |
+|---|---|---|
+| `--audio_chunking.max_audio_clip_s` | `30` | Longest clip we send to the engine in one request, and therefore the chunk length. It sits well below the model's native 1,200s on purpose: shorter chunks batch better, and the output-token budget scales with clip length on its own. Capped at the native clip limit. |
+| `--audio_chunking.max_concurrent_chunks` | `8` | How many chunks of one request run in the engine at once. A per-request cap so one long upload can't crowd out everyone else's requests. |
+| `--audio_chunking.max_total_audio_s` | `3600` | Upper limit on one upload; you get HTTP 400 above it. It bounds a single decoded waveform, not the total across uploads; that is the next knob's job. |
+| `--audio_chunking.max_concurrent_long_audio_requests` | `max_running_requests // (2 × max_concurrent_chunks)`, at least 1; `4` with the stock defaults | How many long uploads the server admits at once. A long upload past the cap gets HTTP 503 instead of queueing; short uploads are never gated. The slot is taken before the upload is decoded and returned when its chunks are done. |
 
-Enable experimental DFlash decoding for Qwen3-ASR-1.7B on one CUDA GPU with the pinned draft model:
+The last knob is the aggregate guard. Each admitted upload holds its decoded
+waveform (float32 at 16 kHz, about 230 MB for an hour) and drives up to
+`max_concurrent_chunks` engine requests, so:
 
-```bash
-sgl-omni serve \
-  --config examples/configs/qwen3_asr_1_7b_dflash.yaml \
-  --asr.engine.max_running_requests 8 \
-  --port 8000
-```
+- decoded waveforms held at once are at most
+  `max_concurrent_long_audio_requests × max_total_audio_s × 16000 × 4` bytes
+  (decoding itself has transient peaks above that);
+- engine slots long audio can take together are at most
+  `max_concurrent_long_audio_requests × max_concurrent_chunks`.
 
-DFlash serves any `temperature`. Above 0, verification accepts each drafted token with the target model's probability for it and otherwise samples from the target's remaining probabilities. ASR transcripts are confident, so sampling barely lowers acceptance: on one H100 with SeedTTS English and Chinese clips at 16 concurrent requests, each verification step committed 5.66 tokens at `temperature` 0, 5.66 at 0.7 and 5.62 at 1.0. On the same server at the default cap of 64 running requests, the speedup at 0.7 and 1.0 stayed close to its greedy speedup at every load tested, from 1 to 64 concurrent requests. DFlash retains CUDA graphs.
+The default keeps that product at half of `--asr.engine.max_running_requests`
+so short requests always have slots left. Setting the knob explicitly to a
+value whose product reaches `max_running_requests` logs a warning at startup:
+it is not an error, since extra chunks only queue in the engine, but short
+requests then wait behind long audio whenever it is saturated. Raising
+`max_running_requests` instead also resizes CUDA graph capture, so treat it
+as the GPU capacity knob and this one as the long-audio share of it.
 
-DFlash does not apply `repetition_penalty`: a request that sets it to anything other than `1.0` returns HTTP 400. To use the penalty, serve without the draft (`--asr.engine.disable_speculative_decoding true`, shown below).
+The model properties are ClassVars on `Qwen3ASRPipelineConfig`; no
+configuration path reaches them:
 
-The draft overlaps scheduling with host work by default; add `--asr.factory.enable_async_decode false` to schedule synchronously. On one H100 with greedy decoding and the prefix cache off, overlap ran at 1.12–1.26x synchronous scheduling on 60-second recordings, 1.01–1.15x on SeedTTS English clips and 0.99–1.15x on SeedTTS Chinese clips, from 1 to 64 concurrent requests, with the same WER and CER. On short clips it also removed the draft's loss under load: at 64 concurrent requests the synchronous draft ran at 0.94x the server without a draft on English clips and 0.91x on Chinese, and the overlapped draft at 1.08x and 1.04x. Overlap runs one extra verify round per request, so the logged acceptance length drops (5.9 to 4.6 tokens on English clips), and streamed first text arrives about 2 ms later for one short clip at a time.
+| Name | Value | Meaning |
+|---|---|---|
+| `allow_audio_chunking` | `true` | Qwen3-ASR transcribes an isolated chunk correctly, so chunking is on. |
+| `max_native_clip_s` | `1200` | Longest clip the model takes as one request (its native limit). Streaming cannot chunk, so this is the streaming cutoff; the Torch MPS compatibility path resolves it to its qualified 60-second cap. |
+| `min_tail_s` | `0.5` | Shortest final chunk worth transcribing; if the tail would be shorter, we move the previous cut earlier to absorb it. This matches the model's own minimum input length. |
 
-The command above caps the server at 8 running requests. A load sweep at the default cap with the prefix cache off ([#3454](https://github.com/sgl-project/sglang-omni/pull/3454)), on one H200 over SeedTTS English clips, found that the synchronous draft gives no speedup at 32 concurrent requests and is about 10% slower at 64. To serve such a load, turn the draft off; `disable_speculative_decoding` drops every `speculative_*` key from the stage:
+Note: Raising `audio_chunking.max_audio_clip_s` also resizes the encoder CUDA-graph bucket
+ladder, which is derived from the chunk length: a longer chunk means more and
+larger captured graphs, and their static buffers stay resident for the life of
+the server (roughly 6.6 KB per token of ladder ceiling; at 1,200s the ceiling
+is 124,800 tokens). Budget for that when you raise the flag on small GPUs.
 
-```bash
-sgl-omni serve \
-  --config examples/configs/qwen3_asr_1_7b_dflash.yaml \
-  --asr.engine.disable_speculative_decoding true \
-  --port 8000
-```
+Behavior notes:
 
-Send the form field `return_spec_tokens_details=true` to get `sglext.spec_tokens_details` (`spec_accept_length`, `spec_accept_rate`, the draft counts and the per-verify histogram) on `json` and `verbose_json` responses and on the streamed `transcript.text.done` event. Audio long enough to be transcribed in chunks returns none. `spec_accept_rate` and `spec_num_proposed_drafts` are left out when no drafts were proposed or the draft width is adaptive.
-
-Realtime transcription sessions (`--enable-realtime`) use the draft too. On one H100 at the default memory fraction and cap of 64 running requests, SeedTTS English and Chinese clips and 60-second LongLibriHeavy recordings streamed at wall-clock pace, 1 to 16 sessions at a time, with server VAD or manual commit. No session hit an error or a protocol violation, WER stayed within 0.03 percentage points of the server without the draft, and the median time to a segment's first partial was 11 to 28% lower with the synchronous draft, least at a 1000 ms decode interval, and to its final transcript 17 to 27% lower. Overlap, now the default, gave the same transcripts and median latencies as the synchronous draft on SeedTTS English sessions with server VAD, 1 and 16 at a time, with no errors or protocol violations.
-
-The draft's weights and KV cache come out of the stage's memory fraction. On an 80 GB H100 at `--mem-fraction-static 0.08`, as in the streaming cascade profiles, the KV cache holds 11,501 tokens with the draft and 20,705 without. At that fraction, 640 SeedTTS Chinese sessions, 16 at a time, ran with no errors.
-
-### Per-request plain fallback
-
-Set `asr.factory.enable_plain_fallback` to route requests that DFlash cannot serve through ordinary decoding. For example, `repetition_penalty=1.2` uses ordinary decoding, and supported sampling temperatures can still use DFlash. Requests that fit the target context but leave too little room for draft KV also use ordinary decoding.
-
-```bash
-sgl-omni serve \
-  --config examples/configs/qwen3_asr_1_7b_plain_fallback.yaml \
-  --port 8000
-```
-
-This option requires synchronous DFlash on one CUDA GPU, with prefill CUDA graphs, mixed chunks, and DP attention disabled. Decode CUDA graphs and radix caching can stay enabled. Both paths share the target model and KV pool, and each path caches its prefixes separately.
-
-When both paths have work, the scheduler gives speculative batches one to two turns per plain turn, according to their live request counts. This reduces the cost of sparse fallback traffic on speculative requests, but increases latency for plain requests. The two-turn cap prevents plain requests from starving; it does not bound wall-clock waiting time because forward durations vary. Fallback requires synchronous decoding, while Qwen3-ASR DFlash on its own overlaps draft execution by default, so even 0% fallback can cost throughput relative to the default DFlash server. Benchmark both request cohorts before enabling this option.
+- **`verbose_json` returns one segment per chunk** with the chunk's real
+  start/end timestamps -- chunk-level granularity, not word-level (Qwen3-ASR
+  does not emit word timestamps).
+- A few unusual audio formats may not expose a readable duration; we fall
+  back to the non-chunked path for those uploads.
+- Streamed responses (`stream=true`) do not support chunking yet; a stream
+  request runs as one engine request. CUDA accepts audio up to the
+  model-native `max_native_clip_s` (1,200s), while Torch MPS accepts up to its
+  qualified 60-second cap and returns HTTP 400 above that -- use `stream=false`
+  for longer uploads.
 
 ## Benchmarking
 
@@ -559,3 +523,15 @@ sgl-omni serve --model-path Qwen/Qwen3-ASR-1.7B \
 
 - Corpus WER stayed 0.0122 for every configuration at every level.
 
+## Known Limitations
+
+The limits shared with the other ASR models are listed in
+[ASR Model Usage](../basic_usage/asr.md#known-limitations). Qwen3-ASR adds:
+
+- The Torch MPS path caps both native and whole-upload requests at 60 seconds,
+  rejects longer audio, and provides no token logprobs or sampling controls
+  beyond `repetition_penalty`.
+- Streaming requests cannot chunk and run as one engine request, bounded by
+  `max_native_clip_s` (1,200 s) on CUDA and 60 seconds on Torch MPS. Use
+  `stream=false` for longer uploads.
+- DFlash rejects `repetition_penalty` values other than `1.0` with HTTP 400.
