@@ -14,8 +14,14 @@ def write_document(repository_root: Path, relative_path: str, content: str) -> N
 
 
 def seed_repository(repository_root: Path) -> None:
-    write_document(repository_root, "index.rst", ".. toctree::\n   :hidden:\n\n   company\n")
-    write_document(repository_root, "company.md", "# Company\n\n```{toctree}\n---\nmaxdepth: 1\n---\n\nmodel\n```\n")
+    write_document(
+        repository_root, "index.rst", ".. toctree::\n   :hidden:\n\n   company\n"
+    )
+    write_document(
+        repository_root,
+        "company.md",
+        "# Company\n\n```{toctree}\n---\nmaxdepth: 1\n---\n\nmodel\n```\n",
+    )
     write_document(repository_root, "model.md", "# Model\n\nGetting started.\n")
 
 
@@ -46,10 +52,14 @@ class SidebarReviewTest(unittest.TestCase):
         write_document(self.head_root, "model.md", "# Model\n\nChanged guidance.\n")
         report, failed = review(self.base_root, self.head_root)
         self.assertFalse(failed)
-        self.assertIn("`docs/model.md`: 2 → 2 nonblank lines (+0); content changed", report)
+        self.assertIn(
+            "`docs/model.md`: 2 → 2 nonblank lines (+0); content changed", report
+        )
 
     def test_total_budget_applies_even_when_each_page_is_small(self) -> None:
-        navigation = ".. toctree::\n\n" + "".join(f"   page_{index}\n" for index in range(40))
+        navigation = ".. toctree::\n\n" + "".join(
+            f"   page_{index}\n" for index in range(40)
+        )
         for root in (self.base_root, self.head_root):
             write_document(root, "index.rst", navigation)
             for index in range(40):
@@ -61,7 +71,9 @@ class SidebarReviewTest(unittest.TestCase):
 
     def test_glob_discovers_new_page_without_changed_navigation(self) -> None:
         for root in (self.base_root, self.head_root):
-            write_document(root, "index.rst", ".. toctree::\n   :glob:\n\n   guides/*\n")
+            write_document(
+                root, "index.rst", ".. toctree::\n   :glob:\n\n   guides/*\n"
+            )
             write_document(root, "guides/old.md", "# Old\n")
         write_document(self.head_root, "guides/new.md", "# New\n")
         report, failed = review(self.base_root, self.head_root)
@@ -87,17 +99,25 @@ class SidebarReviewTest(unittest.TestCase):
             sidebar_snapshot(self.head_root)
 
     def test_fenced_examples_are_not_navigation(self) -> None:
-        write_document(self.head_root, "model.md", "# Model\n\n~~~rst\n.. toctree::\n\n   missing\n~~~\n")
+        write_document(
+            self.head_root,
+            "model.md",
+            "# Model\n\n~~~rst\n.. toctree::\n\n   missing\n~~~\n",
+        )
         self.assertEqual(len(sidebar_snapshot(self.head_root)[0]), 3)
 
     def test_duplicate_entries_count_toward_sidebar_budget(self) -> None:
-        write_document(self.head_root, "index.rst", ".. toctree::\n\n" + "   company\n" * 7)
+        write_document(
+            self.head_root, "index.rst", ".. toctree::\n\n" + "   company\n" * 7
+        )
         report, failed = review(self.base_root, self.head_root)
         self.assertTrue(failed)
         self.assertIn("Net new toctree entries: 6 exceeds 5", report)
 
     def test_include_is_incomplete_instead_of_silently_ignored(self) -> None:
-        write_document(self.head_root, "model.md", "# Model\n\n```{include} ../outside.md\n```\n")
+        write_document(
+            self.head_root, "model.md", "# Model\n\n```{include} ../outside.md\n```\n"
+        )
         with self.assertRaisesRegex(ValueError, "include directives"):
             sidebar_snapshot(self.head_root)
 
