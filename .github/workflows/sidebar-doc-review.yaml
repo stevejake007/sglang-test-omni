@@ -1,0 +1,51 @@
+name: Sidebar documentation review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sidebar-doc-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+
+      - name: Checkout PR snapshot as data
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          persist-credentials: false
+
+      - name: Check sidebar growth
+        shell: bash
+        run: |
+          report="$RUNNER_TEMP/sidebar-review.md"
+          if [ ! -f base/scripts/review_sidebar_docs.py ]; then
+            echo '::warning::Sidebar review is not installed on the base branch yet; this bootstrap run did not check the PR.'
+            echo 'Sidebar review was not run: the checker is not on the base branch yet.' >> "$GITHUB_STEP_SUMMARY"
+          elif python3 base/scripts/review_sidebar_docs.py --base base --head head --report "$report"; then
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          else
+            status=$?
+            if [ -f "$report" ]; then
+              cat "$report" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo 'Sidebar review incomplete. See the job log; no clean result was produced.' >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit "$status"
+          fi
