@@ -9,6 +9,7 @@ titlesonly: true
 ---
 
 ../qwen3_tts.md
+../sidebar_review_probe.md
 ../qwen3_omni.md
 ../qwen3_asr.md
 ```
