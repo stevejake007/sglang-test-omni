@@ -37,15 +37,41 @@ sgl-omni serve \
   --port 8000
 ```
 
+### Server Readiness
+
 The first startup will take several minutes for compilation and warmup. Then, in another terminal, run the following command and wait until `/health` returns HTTP 200:
 
 ```bash
 curl -i http://localhost:8000/health
 ```
 
+### Choose a Model
+
+| Goal | Checkpoint family | What to provide |
+|---|---|---|
+| Generate speech with a built-in speaker | [CustomVoice](#customvoice) | Text and a speaker name |
+| Clone a voice | [Base](#voice-cloning) | Text and reference audio; include its transcript for better cloning |
+| Describe a new voice | [VoiceDesign](#voicedesign) | Text and a voice description |
+
+Use CustomVoice if you do not have a reference clip. For other hardware, such as Ascend NPU or Intel XPU, or for the native Apple Silicon runtime, see [platform deployment](qwen3_tts/platforms.md).
+
+### Model Variants
+
+Use the full checkpoint ID in `--model-path` and the request's `model` field.
+
+| Checkpoint | Config under `examples/configs/` |
+|---|---|
+| `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` | `qwen3_tts_0_6b_customvoice.yaml` |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | `qwen3_tts_1_7b_customvoice.yaml` |
+| `Qwen/Qwen3-TTS-12Hz-0.6B-Base` | `qwen3_tts_0_6b.yaml` |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `qwen3_tts_1_7b.yaml` |
+| `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `qwen3_tts_1_7b_voicedesign.yaml` |
+
+## Usage
+
 <span id="generate-speech"></span>
 
-## Synthesizing Speech
+### Synthesizing Speech
 
 ```bash
 curl --fail-with-body http://localhost:8000/v1/audio/speech \
@@ -62,57 +88,7 @@ curl --fail-with-body http://localhost:8000/v1/audio/speech \
 
 Open `output.wav` in an audio player. The response is WAV audio by default. For Python or the OpenAI SDK, use the [TTS client examples](../basic_usage/tts.md#python).
 
-## Choose a model
-
-| Goal | Checkpoint family | What to provide |
-|---|---|---|
-| Generate speech with a built-in speaker | [CustomVoice](#customvoice) | Text and a speaker name |
-| Clone a voice | [Base](#voice-cloning) | Text and reference audio; include its transcript for better cloning |
-| Describe a new voice | [VoiceDesign](#voicedesign) | Text and a voice description |
-
-Use CustomVoice if you do not have a reference clip. For other hardware, such as Ascend NPU or Intel XPU, or for the native Apple Silicon runtime, see [platform deployment](qwen3_tts/platforms.md).
-
-<span id="text-only-requests"></span>
-
-## Voice modes
-
-<span id="customvoice-checkpoints"></span>
-
-### CustomVoice
-
-CustomVoice uses `voice` to select a built-in speaker. The 1.7B model also supports speaking-style control through `instructions`, while the 0.6B model is primarily intended for speech synthesis with built-in speakers.
-
-List the available speakers:
-
-```bash
-curl --fail-with-body http://localhost:8000/v1/audio/voices
-```
-
-The 0.6B checkpoint also supports built-in speakers, but reliable style control requires 1.7B. See [speaker and dialect behavior](qwen3_tts/reference.md#customvoice-behavior) for details.
-
-### Voice cloning
-
-Voice cloning requires a Base checkpoint with reference audio or a [precomputed speaker embedding](qwen3_tts/reference.md#precomputed-speaker-embedding). See [Voice cloning in TTS Model Usage](../basic_usage/tts.md#voice-cloning) for setup and request examples.
-
-<span id="voicedesign-checkpoint"></span>
-
-### VoiceDesign
-
-VoiceDesign generates a voice from a description in `instructions` and requires the 1.7B VoiceDesign checkpoint. See [Voice design in TTS Model Usage](../basic_usage/tts.md#voice-design) for setup and request examples.
-
-### Model variants
-
-Use the full checkpoint ID in `--model-path` and the request's `model` field.
-
-| Checkpoint | Config under `examples/configs/` |
-|---|---|
-| `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` | `qwen3_tts_0_6b_customvoice.yaml` |
-| `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | `qwen3_tts_1_7b_customvoice.yaml` |
-| `Qwen/Qwen3-TTS-12Hz-0.6B-Base` | `qwen3_tts_0_6b.yaml` |
-| `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `qwen3_tts_1_7b.yaml` |
-| `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `qwen3_tts_1_7b_voicedesign.yaml` |
-
-## Streaming
+### Streaming
 
 With the CustomVoice server running, send a streaming request:
 
@@ -136,10 +112,39 @@ All three voice modes support streaming. For detailed examples, see [TTS streami
 
 The default chunk schedule favors early audio. If playback stalls under load, see [first-audio chunk tuning](qwen3_tts/tuning.md#first-audio-chunk-ramp).
 
+<span id="text-only-requests"></span>
+
+## Voice Modes
+
+<span id="customvoice-checkpoints"></span>
+
+### CustomVoice
+
+CustomVoice uses `voice` to select a built-in speaker. The 1.7B model also supports speaking-style control through `instructions`, while the 0.6B model is primarily intended for speech synthesis with built-in speakers.
+
+List the available speakers:
+
+```bash
+curl --fail-with-body http://localhost:8000/v1/audio/voices
+```
+
+The 0.6B checkpoint also supports built-in speakers, but reliable style control requires 1.7B. See [speaker and dialect behavior](qwen3_tts/reference.md#customvoice-behavior) for details.
+
+### Voice Cloning
+
+Voice cloning requires a Base checkpoint with reference audio or a [precomputed speaker embedding](qwen3_tts/reference.md#precomputed-speaker-embedding). See [Voice cloning in TTS Model Usage](../basic_usage/tts.md#voice-cloning) for setup and request examples.
+
+<span id="voicedesign-checkpoint"></span>
+
+### VoiceDesign
+
+VoiceDesign generates a voice from a description in `instructions` and requires the 1.7B VoiceDesign checkpoint. See [Voice design in TTS Model Usage](../basic_usage/tts.md#voice-design) for setup and request examples.
+
 <span id="generation-parameters"></span>
 <span id="language-hint"></span>
+<span id="common-options"></span>
 
-## Common options
+## Request Parameters
 
 With the 1.7B CustomVoice server running, customize the language, speaking style, generation limit, and sampling seed:
 
@@ -162,7 +167,7 @@ Reaching `max_new_tokens` can truncate speech. A fixed `seed` does not guarantee
 
 See [Qwen3-TTS parameters](qwen3_tts/reference.md#generation-parameters) for defaults and model-specific controls, and the [shared TTS API](../basic_usage/tts.md#request-parameters) for common request fields.
 
-### Known limitations
+## Known Limitations
 
 - **Base requires a reference voice.** Provide reference audio or a speaker embedding. Include the audio transcript for better cloning quality. For text-only synthesis, use CustomVoice or VoiceDesign.
 - **Speech may repeat or stop before the sentence ends.** Repetition can occur on some inputs. Set `max_new_tokens` to limit generation, but allow enough tokens for the full sentence. Check the `X-Finish-Reason` response header: `length` means generation reached the limit, so the audio may be incomplete. See [finish reasons](qwen3_tts/reference.md#finish-reasons) and [benchmark results](qwen3_tts/benchmarks.md#benchmark-results).
@@ -174,7 +179,6 @@ See [Qwen3-TTS parameters](qwen3_tts/reference.md#generation-parameters) for def
 <span id="optional-cutedsl-decode"></span>
 <span id="deterministic-inference"></span>
 <span id="overload-admission-policy"></span>
-<span id="server-readiness"></span>
 <span id="prefill-cuda-graphs"></span>
 <span id="prefill-admission-coalescing"></span>
 <span id="process-topology"></span>
