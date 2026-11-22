@@ -475,6 +475,45 @@ func TestIdleUnload(t *testing.T) {
 
 }
 
+func TestAutomaticIdleUnloadUnderMemoryPressure(t *testing.T) {
+	const grace = 30 * time.Second
+	for _, tc := range []struct {
+		name     string
+		pressure bool
+		keep     time.Duration
+		unloads  bool
+	}{
+		{name: "automatic under pressure", pressure: true, unloads: true},
+		{name: "automatic with memory available"},
+		{name: "explicit duration", pressure: true, keep: 5 * time.Minute},
+		{name: "until quit", pressure: true, keep: -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFake(t, omnitest.Opts{}, func(c *Config) { c.IdleTimeout = tc.keep })
+			f.rt.underMemoryPressure = func() bool { return tc.pressure }
+			clock := new(fakeClock).install(f.rt)
+			a := f.asr(t, ASRAccurate)
+			l, err := f.rt.acquire(context.Background(), a.spec, a.dir, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			clock.advance(grace)
+			if len(f.rt.Running()) != 1 {
+				t.Fatal("unloaded a model while it was leased")
+			}
+			l.release()
+			clock.advance(grace - time.Millisecond)
+			if len(f.rt.Running()) != 1 {
+				t.Fatal("unloaded before the idle grace period")
+			}
+			clock.advance(time.Millisecond)
+			if unloaded := len(f.rt.Running()) == 0; unloaded != tc.unloads {
+				t.Fatalf("unloaded after the idle grace period = %t, want %t", unloaded, tc.unloads)
+			}
+		})
+	}
+}
+
 // TestSetIdleTimeout: a change applies to the running servers at once:
 // kept (never) → stopped after the new time, counted from the change;
 // back to never, they stay.

@@ -22,14 +22,15 @@ type server struct {
 	// none; cleared once the server refused it (startProcess).
 	draft string
 
-	mu      sync.Mutex
-	proc    *process // the ready process, nil when none runs
-	spawned *process // the process starting, until it is ready or failed
-	start   *startOp // the start in progress, shared by its waiters
-	leases  int      // uses holding proc
-	idle    func()   // stops the idle timer
-	retired bool
-	stopped chan struct{} // closed once retired and no process is left
+	mu             sync.Mutex
+	proc           *process // the ready process, nil when none runs
+	spawned        *process // the process starting, until it is ready or failed
+	start          *startOp // the start in progress, shared by its waiters
+	leases         int      // uses holding proc
+	idle           func()   // stops the idle timer
+	idleGeneration uint64   // distinguishes a fired timer from its replacement
+	retired        bool
+	stopped        chan struct{} // closed once retired and no process is left
 	// loaded is the process that said it is ready, until it exited
 	// (Config.OnModel's view: tracker).
 	loaded  *process
@@ -228,25 +229,42 @@ func (s *server) unlease(p *process) {
 	s.armIdle(p)
 }
 
+// Leave a short grace period for back-to-back dictations.
+const pressureIdleTimeout = 30 * time.Second
+
 // armIdle stops p after the idle timeout, from now (s.mu held).
 func (s *server) armIdle(p *process) {
 	if s.idle != nil {
 		s.idle()
 		s.idle = nil
 	}
-	d := s.rt.IdleTimeout()
+	d := time.Duration(s.rt.idle.Load())
 	if d < 0 {
 		return
 	}
+	var pressure bool
+	if d == 0 {
+		d = DefaultIdleTimeout
+		pressure = s.spec.ASR != nil && s.rt.underMemoryPressure()
+		if pressure {
+			d = pressureIdleTimeout
+		}
+	}
+	s.idleGeneration++
+	generation := s.idleGeneration
 	s.idle = s.rt.afterFunc(d, func() {
 		s.mu.Lock()
-		if s.proc != p || s.leases > 0 {
+		if s.idle == nil || s.idleGeneration != generation || s.proc != p || s.leases > 0 {
 			s.mu.Unlock()
 			return
 		}
 		s.proc, s.idle = nil, nil
 		s.mu.Unlock()
-		s.rt.logf("info", "%s unloaded after %v unused", s.spec.ID, d)
+		if pressure {
+			s.rt.logf("info", "%s unloaded after %v unused due to memory pressure", s.spec.ID, d)
+		} else {
+			s.rt.logf("info", "%s unloaded after %v unused", s.spec.ID, d)
+		}
 		p.stop()
 	})
 }

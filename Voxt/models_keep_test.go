@@ -12,15 +12,15 @@ import (
 	"github.com/sgl-project/sglang-omni/Voxt/internal/settings"
 )
 
-// TestKeepIdle: Automatic keeps the speech servers' own idle time; the
+// TestKeepIdle: Automatic lets the runtime choose the idle time; the
 // other choices set another; "until VoxtNew quits" is never.
 func TestKeepIdle(t *testing.T) {
 	for _, c := range []struct {
 		v    string
 		idle time.Duration
 	}{
-		{settings.KeepAuto, 10 * time.Minute},
-		{"unknown", 10 * time.Minute},
+		{settings.KeepAuto, 0},
+		{"unknown", 0},
 		{settings.Keep5Min, 5 * time.Minute},
 		{settings.Keep15Min, 15 * time.Minute},
 		{settings.Keep30Min, 30 * time.Minute},

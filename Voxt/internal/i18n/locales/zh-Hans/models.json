@@ -43,7 +43,7 @@
   "Installed": "已安装",
   "Installed by %s": "由 %s 安装",
   "Keep models loaded": "保持模型载入",
-  "Loaded models start at once but keep using memory. Automatic unloads them after 10 minutes unused.": "保持载入的模型能立即开始，但会一直占用内存。“自动”在闲置 10 分钟后卸载。",
+  "Loaded models start at once but keep using memory. Automatic unloads them after 10 minutes unused, or sooner under memory pressure.": "保持载入的模型能立即开始，但会一直占用内存。“自动”通常在闲置 10 分钟后卸载，内存紧张时会提前卸载。",
   "Does not support your main language": "不支持主要语言",
   "Loaded": "已载入",
   "Loaded · %s in memory": "已载入 · 占用内存 %s",

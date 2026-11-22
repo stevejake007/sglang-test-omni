@@ -270,6 +270,8 @@ And their own fields:
 | `providers.llm` | array of providers | `[]` | one entry per language model service | Language models (one card per service set up) |
 | `providers.asr` | array of providers | `[]` | one entry per speech service | Speech models → online services |
 
+Automatic normally unloads unused servers after 10 minutes. If macOS reports warning or critical memory pressure when a speech recognition server becomes idle, it unloads after 30 seconds of inactivity.
+
 A provider is an object. Set the key on the page; an entry without one fails its connection test.
 
 | Field | Type | Default | Meaning |
