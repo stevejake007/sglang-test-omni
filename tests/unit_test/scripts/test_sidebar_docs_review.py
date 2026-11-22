@@ -1,5 +1,7 @@
 """Regression tests for sidebar navigation and growth budgets."""
 
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +12,14 @@ GENERAL_USAGE = ".. toctree::\n   :caption: General Usage\n"
 DEVELOPER_REFERENCE = ".. toctree::\n   :caption: Developer Reference\n"
 
 
+def root_navigation(
+    general_usage: str = "\n   self\n", developer_reference: str = "\n   self\n"
+) -> str:
+    return (
+        GENERAL_USAGE + general_usage + "\n" + DEVELOPER_REFERENCE + developer_reference
+    )
+
+
 def write_document(repository_root: Path, relative_path: str, content: str) -> None:
     document_path = repository_root / "docs" / relative_path
     document_path.parent.mkdir(parents=True, exist_ok=True)
@@ -18,7 +28,9 @@ def write_document(repository_root: Path, relative_path: str, content: str) -> N
 
 def seed_repository(repository_root: Path) -> None:
     write_document(
-        repository_root, "index.rst", GENERAL_USAGE + "   :hidden:\n\n   company\n"
+        repository_root,
+        "index.rst",
+        root_navigation(general_usage="   :hidden:\n\n   company\n"),
     )
     write_document(
         repository_root,
@@ -60,8 +72,8 @@ class SidebarReviewTest(unittest.TestCase):
         )
 
     def test_total_budget_applies_even_when_each_page_is_small(self) -> None:
-        navigation = (
-            GENERAL_USAGE + "\n" + "".join(f"   page_{index}\n" for index in range(40))
+        navigation = root_navigation(
+            general_usage="\n" + "".join(f"   page_{index}\n" for index in range(40))
         )
         for root in (self.base_root, self.head_root):
             write_document(root, "index.rst", navigation)
@@ -75,7 +87,9 @@ class SidebarReviewTest(unittest.TestCase):
     def test_glob_discovers_new_page_without_changed_navigation(self) -> None:
         for root in (self.base_root, self.head_root):
             write_document(
-                root, "index.rst", DEVELOPER_REFERENCE + "   :glob:\n\n   guides/*\n"
+                root,
+                "index.rst",
+                root_navigation(developer_reference="   :glob:\n\n   guides/*\n"),
             )
             write_document(root, "guides/old.md", "# Old\n")
         write_document(self.head_root, "guides/new.md", "# New\n")
@@ -117,7 +131,9 @@ class SidebarReviewTest(unittest.TestCase):
 
     def test_duplicate_entries_count_toward_sidebar_budget(self) -> None:
         write_document(
-            self.head_root, "index.rst", GENERAL_USAGE + "\n" + "   company\n" * 7
+            self.head_root,
+            "index.rst",
+            root_navigation(general_usage="\n" + "   company\n" * 7),
         )
         report, failed = review(self.base_root, self.head_root)
         self.assertTrue(failed)
@@ -141,10 +157,8 @@ class SidebarReviewTest(unittest.TestCase):
             write_document(
                 root,
                 "index.rst",
-                GENERAL_USAGE
-                + "\n   company\n\n"
-                + f".. toctree::\n   :caption: {caption}\n\n   outside\n   missing\n"
-                + "\n.. toctree::\n\n   uncaptioned\n",
+                root_navigation(general_usage="\n   company\n")
+                + f"\n.. toctree::\n   :caption: {caption}\n\n   outside\n   missing\n",
             )
         write_document(self.base_root, "outside.md", "# Removed page\n")
         write_document(self.head_root, "outside.rst", "out of scope\n" * 700)
@@ -182,7 +196,7 @@ class SidebarReviewTest(unittest.TestCase):
         write_document(
             self.base_root,
             "index.rst",
-            ".. toctree::\n   :caption: Cookbook\n\n   company\n",
+            root_navigation() + "\n.. toctree::\n   :caption: Cookbook\n\n   company\n",
         )
         report, failed = review(self.base_root, self.head_root)
         self.assertFalse(failed)
@@ -195,6 +209,47 @@ class SidebarReviewTest(unittest.TestCase):
         write_document(self.head_root, "model.rst", "Ambiguous model\n")
         with self.assertRaisesRegex(ValueError, "same Sphinx document name: model"):
             sidebar_snapshot(self.head_root)
+
+    def test_root_scope_changes_exit_incomplete(self) -> None:
+        """A lost or unclassified section used to bypass the growth check."""
+        index_path = self.head_root / "docs/index.rst"
+        original = index_path.read_text(encoding="utf-8")
+        write_document(self.head_root, "advanced.md", "line\n" * 2000)
+        for navigation, diagnostic in (
+            (
+                original.replace("General Usage", "Basic Usage"),
+                "missing reviewed section(s): General Usage",
+            ),
+            (
+                original.partition(DEVELOPER_REFERENCE)[0],
+                "missing reviewed section(s): Developer Reference",
+            ),
+            (
+                original + "\n.. toctree::\n   :caption: Advanced\n\n   advanced\n",
+                "unclassified root toctree(s): Advanced",
+            ),
+            (
+                original + "\n.. toctree::\n\n   advanced\n",
+                "unclassified root toctree(s): (uncaptioned)",
+            ),
+        ):
+            with self.subTest(diagnostic=diagnostic):
+                index_path.write_text(navigation, encoding="utf-8")
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "scripts.review_sidebar_docs",
+                        "--base",
+                        str(self.base_root),
+                        "--head",
+                        str(self.head_root),
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(diagnostic, result.stderr)
 
 
 if __name__ == "__main__":

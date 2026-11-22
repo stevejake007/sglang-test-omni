@@ -18,6 +18,7 @@ MAX_NEW_ENTRIES_PER_PR = 5
 MAX_NEW_LINES_PER_PR = 600
 DOCUMENT_SUFFIXES = (".md", ".rst")
 REVIEWED_CAPTIONS = ("General Usage", "Developer Reference")
+EXCLUDED_CAPTIONS = ("Get Started", "Voxt", "Other Platforms", "Cookbook")
 GLOB_TOKEN_PATTERN = re.compile(r"\[[!]?\]?[^]]*\]|\*\*|\*|\?|.")
 
 
@@ -56,6 +57,7 @@ def navigation_entries(
     """Read RST and MyST toctree entries without executing document code."""
     lines = source.splitlines()
     entries: list[NavigationEntry] = []
+    root_captions: set[str] = set()
     index = 0
     while index < len(lines):
         line = lines[index]
@@ -90,7 +92,7 @@ def navigation_entries(
             index += 1
             continue
         is_glob = False
-        in_scope = not is_root
+        caption = ""
         options_block = False
         closed = bool(rst)
         index += 1
@@ -119,10 +121,10 @@ def navigation_entries(
                 if re.fullmatch(r":glob:\s*", stripped):
                     is_glob = True
                 elif is_root and stripped.startswith(":caption:"):
-                    in_scope = (
-                        stripped.removeprefix(":caption:").strip() in REVIEWED_CAPTIONS
-                    )
-            elif in_scope and not stripped.startswith("#"):
+                    caption = stripped.removeprefix(":caption:").strip()
+            elif (
+                not is_root or caption in REVIEWED_CAPTIONS
+            ) and not stripped.startswith("#"):
                 entries.append(
                     NavigationEntry(source_path, index + 1, stripped, is_glob)
                 )
@@ -131,6 +133,22 @@ def navigation_entries(
             raise ValueError(f"{source_path}: unclosed toctree options")
         if not closed:
             raise ValueError(f"{source_path}: unclosed toctree fence")
+        if is_root:
+            root_captions.add(caption)
+    if is_root:
+        missing = sorted(set(REVIEWED_CAPTIONS) - root_captions)
+        unknown = sorted(root_captions.difference(REVIEWED_CAPTIONS, EXCLUDED_CAPTIONS))
+        problems = []
+        if missing:
+            problems.append(f"missing reviewed section(s): {', '.join(missing)}")
+        if unknown:
+            labels = ", ".join(name or "(uncaptioned)" for name in unknown)
+            problems.append(f"unclassified root toctree(s): {labels}")
+        if problems:
+            raise ValueError(
+                f"{source_path}: {'; '.join(problems)}. Restore the caption or update "
+                "the checker's reviewed and excluded sections for this navigation change."
+            )
     return entries
 
 

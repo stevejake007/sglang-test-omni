@@ -12,7 +12,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has-checker: ${{ steps.probe.outputs.has-checker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: /scripts/review_sidebar_docs.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Check for the trusted checker
+        id: probe
+        shell: bash
+        run: |
+          if [[ -f scripts/review_sidebar_docs.py ]]; then
+            echo 'has-checker=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'has-checker=false' >> "$GITHUB_OUTPUT"
+            echo 'Sidebar review skipped because the PR base has no checker.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   review:
+    needs: check-base
+    if: needs.check-base.outputs.has-checker == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -35,10 +61,7 @@ jobs:
         shell: bash
         run: |
           report="$RUNNER_TEMP/sidebar-review.md"
-          if [ ! -f base/scripts/review_sidebar_docs.py ]; then
-            echo '::warning::Sidebar review is not installed on the base branch yet; this bootstrap run did not check the PR.'
-            echo 'Sidebar review was not run: the checker is not on the base branch yet.' >> "$GITHUB_STEP_SUMMARY"
-          elif python3 base/scripts/review_sidebar_docs.py --base base --head head --report "$report"; then
+          if python3 base/scripts/review_sidebar_docs.py --base base --head head --report "$report"; then
             cat "$report" >> "$GITHUB_STEP_SUMMARY"
           else
             status=$?
