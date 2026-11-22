@@ -71,3 +71,6 @@ jobs:
 
       - name: Test documentation style checker
         run: python -m pytest tests/unit_test/scripts/test_check_doc_style*.py -q
+
+      - name: Test sidebar review scope and budgets
+        run: python -m unittest discover -s tests/unit_test/scripts -p test_sidebar_docs_review.py -v
