@@ -109,6 +109,7 @@ while [ "${attempt}" -le "${max_attempts}" ]; do
   report_gpu_occupancy
 
   if [ "${attempt}" -ge "${max_attempts}" ]; then
+    sed -nE '/^(FAILED|ERROR) /{s/%/%25/g;s/^/::error::/;p;}' "${log_file}"
     break
   fi
 
