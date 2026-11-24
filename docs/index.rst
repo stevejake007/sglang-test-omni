@@ -18,6 +18,14 @@ Get Started
 - :doc:`Examples <get_started/examples>` — Stream a transcript, generate speech, or send an audio chat request.
 - Browse supported models under **Cookbook** in the sidebar.
 
+Developer Reference
+-------------------
+
+Architecture and layer references live under **Developer Reference** in the sidebar.
+
+- :doc:`Architecture <developer_reference/main>`
+- :doc:`Contribution guide <developer_reference/contribution_guide>`
+
 News and latest blogs
 ---------------------
 
