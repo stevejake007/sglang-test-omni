@@ -1,0 +1,74 @@
+name: Sidebar documentation review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sidebar-doc-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has-checker: ${{ steps.probe.outputs.has-checker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: /scripts/review_sidebar_docs.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Check for the trusted checker
+        id: probe
+        shell: bash
+        run: |
+          if [[ -f scripts/review_sidebar_docs.py ]]; then
+            echo 'has-checker=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'has-checker=false' >> "$GITHUB_OUTPUT"
+            echo 'Sidebar review skipped because the PR base has no checker.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  review:
+    needs: check-base
+    if: needs.check-base.outputs.has-checker == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+
+      - name: Checkout PR snapshot as data
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          persist-credentials: false
+
+      - name: Check sidebar growth
+        shell: bash
+        run: |
+          report="$RUNNER_TEMP/sidebar-review.md"
+          if python3 base/scripts/review_sidebar_docs.py --base base --head head --report "$report"; then
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          else
+            status=$?
+            if [ -f "$report" ]; then
+              cat "$report" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo 'Sidebar review incomplete. See the job log; no clean result was produced.' >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit "$status"
+          fi
