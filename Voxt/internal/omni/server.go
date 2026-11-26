@@ -28,7 +28,7 @@ type server struct {
 	start          *startOp // the start in progress, shared by its waiters
 	leases         int      // uses holding proc
 	idle           func()   // stops the idle timer
-	idleGeneration uint64   // distinguishes a fired timer from its replacement
+	idleGeneration uint64   // a cancelled callback may already be waiting on mu
 	retired        bool
 	stopped        chan struct{} // closed once retired and no process is left
 	// loaded is the process that said it is ready, until it exited
@@ -229,26 +229,15 @@ func (s *server) unlease(p *process) {
 	s.armIdle(p)
 }
 
-// Leave a short grace period for back-to-back dictations.
-const pressureIdleTimeout = 30 * time.Second
-
 // armIdle stops p after the idle timeout, from now (s.mu held).
 func (s *server) armIdle(p *process) {
 	if s.idle != nil {
 		s.idle()
 		s.idle = nil
 	}
-	d := time.Duration(s.rt.idle.Load())
+	d := s.rt.IdleTimeout()
 	if d < 0 {
 		return
-	}
-	var pressure bool
-	if d == 0 {
-		d = DefaultIdleTimeout
-		pressure = s.spec.ASR != nil && s.rt.underMemoryPressure()
-		if pressure {
-			d = pressureIdleTimeout
-		}
 	}
 	s.idleGeneration++
 	generation := s.idleGeneration
@@ -260,11 +249,7 @@ func (s *server) armIdle(p *process) {
 		}
 		s.proc, s.idle = nil, nil
 		s.mu.Unlock()
-		if pressure {
-			s.rt.logf("info", "%s unloaded after %v unused due to memory pressure", s.spec.ID, d)
-		} else {
-			s.rt.logf("info", "%s unloaded after %v unused", s.spec.ID, d)
-		}
+		s.rt.logf("info", "%s unloaded after %v unused", s.spec.ID, d)
 		p.stop()
 	})
 }

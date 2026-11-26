@@ -1,8 +1,8 @@
 package omni
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -76,14 +76,40 @@ func watchLog(c *Config, sub string) func(*testing.T) {
 	}
 }
 
-// TestAudioBytes: the PCM an append message carries, for base64 lengths
-// with 0, 1 and 2 padding bytes (DecodedLen counts the padding as data).
-func TestAudioBytes(t *testing.T) {
+func TestAudioAppend(t *testing.T) {
 	for _, n := range []int{0, 3, 4, 5, 6, 3198, 3199, 3200} {
-		msg, _ := json.Marshal(map[string]string{"type": "input_audio_buffer.append", "audio": base64.StdEncoding.EncodeToString(make([]byte, n))})
-		if got := audioBytes(msg); got != n {
-			t.Errorf("%d bytes of PCM: got %d", n, got)
+		pcm := bytes.Repeat([]byte{0xfb}, n)
+		msg := audioAppend(pcm)
+		var wire struct {
+			Type  string
+			Audio []byte
 		}
+		if err := json.Unmarshal(msg.data, &wire); err != nil {
+			t.Fatal(err)
+		}
+		if wire.Type != "input_audio_buffer.append" || !bytes.Equal(wire.Audio, pcm) || msg.pcmBytes != n {
+			t.Fatalf("%d PCM bytes: type %q, decoded %d, queued %d", n, wire.Type, len(wire.Audio), msg.pcmBytes)
+		}
+	}
+}
+
+// BenchmarkRealtimeAudioFrame measures sending and accounting for 100 ms
+// of microphone audio, excluding the socket and speech model.
+func BenchmarkRealtimeAudioFrame(b *testing.B) {
+	pcm := make([]byte, 3200) // 16 kHz, mono, 16-bit
+	s := &live{preview: true, out: make(chan realtimeMessage, 1)}
+	b.SetBytes(int64(len(pcm)))
+	b.ReportAllocs()
+	for b.Loop() {
+		s.audio = s.audio[:0]
+		if err := s.Send(pcm); err != nil {
+			b.Fatal(err)
+		}
+		msg := <-s.out
+		s.queued -= msg.pcmBytes
+	}
+	if s.queued != 0 {
+		b.Fatalf("%d bytes left in the queue", s.queued)
 	}
 }
 
@@ -125,7 +151,7 @@ func TestLive(t *testing.T) {
 		t.Errorf("finals %+v", finals)
 	}
 	f.rt.Close() // the server records its live sessions before it exits
-	if l := f.records("live"); len(l) != 1 || l[0].Fields["language"] != "zh" || l[0].Samples == 0 {
+	if l := f.records("live"); len(l) != 1 || l[0].Fields["language"] != "zh" || l[0].Fields["final_prompt"] != "VoxtNew" || l[0].Fields["prompt"] != "" || l[0].Samples == 0 {
 		t.Errorf("live %+v", l)
 	}
 	if err := st.Send(pcm[:3200]); err == nil {
@@ -133,6 +159,69 @@ func TestLive(t *testing.T) {
 	}
 	st.Close()
 	st.Close()
+}
+
+// TestFinalPrior: the Final carries the preview's text and the session that
+// heard it. Without a language hint it carries no text (the model writes the
+// language first), and of a recording cut into chunks only the first carries
+// the session and none the text (no chunk is all of it).
+func TestFinalPrior(t *testing.T) {
+	for _, tc := range []struct{ lang, text string }{
+		{"zh", "partial 5"},
+		{"", ""},
+	} {
+		f := newFake(t, omnitest.Opts{}, nil)
+		st, err := f.asr(t, ASRFast).Open(context.Background(), asr.StreamRequest{SampleRate: 16000, Lang: tc.lang})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// 8000 samples in one append: the fake's one partial is "partial 5".
+		if err := st.Send(tone(500*time.Millisecond, 0.3)); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-st.Events():
+		case <-time.After(10 * time.Second):
+			t.Fatal("no partial")
+		}
+		if err := st.Finish(); err != nil {
+			t.Fatal(err)
+		}
+		drain(t, st)
+		finals := f.records("final")
+		if len(finals) != 1 || finals[0].Fields["guessed_text"] != tc.text || finals[0].Fields["realtime_session"] != "fake-session" {
+			t.Errorf("language %q: finals %+v, want the text %q and the session", tc.lang, finals, tc.text)
+		}
+		f.rt.Close() // the server records its live sessions before it exits
+		// Without a dictionary the session still has the Final's (empty)
+		// prompt to prefill.
+		if l := f.records("live"); len(l) != 1 {
+			t.Errorf("language %q: live sessions %+v", tc.lang, l)
+		} else if p, ok := l[0].Fields["final_prompt"]; !ok || p != "" {
+			t.Errorf("language %q: final_prompt %q, sent %v, want an empty one", tc.lang, p, ok)
+		}
+	}
+
+	f := newFake(t, omnitest.Opts{}, nil)
+	ctx := context.Background()
+	a := f.asr(t, ASRFast)
+	l, err := f.rt.acquire(ctx, a.spec, a.dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.release()
+	if _, _, err := a.final(ctx, l, tone(130*time.Second, 0.3), "zh", bias{}, prior{text: "text", session: "s"}); err != nil {
+		t.Fatal(err)
+	}
+	finals := f.records("final")
+	if len(finals) < 2 {
+		t.Fatalf("130 s of audio in %d requests", len(finals))
+	}
+	for i, r := range finals {
+		if r.Fields["guessed_text"] != "" || (r.Fields["realtime_session"] == "s") != (i == 0) {
+			t.Errorf("chunk %d: %v", i, r.Fields)
+		}
+	}
 }
 
 // TestLiveResult: with LiveResult the live socket's whole text is the
@@ -163,6 +252,13 @@ func TestLiveResult(t *testing.T) {
 			t.Errorf("dropped %v: Finals %+v", drop, got)
 		}
 		st.Close()
+		f.rt.Close() // the server records its live sessions before it exits
+		// The socket's text is the result: no Final to prefill.
+		for _, l := range f.records("live") {
+			if _, ok := l.Fields["final_prompt"]; ok {
+				t.Errorf("dropped %v: final_prompt sent with LiveResult", drop)
+			}
+		}
 	}
 }
 

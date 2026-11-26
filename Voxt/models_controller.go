@@ -11,6 +11,7 @@ import (
 	"github.com/sgl-project/sglang-omni/Voxt/internal/i18n"
 	"github.com/sgl-project/sglang-omni/Voxt/internal/local"
 	"github.com/sgl-project/sglang-omni/Voxt/internal/models"
+	"github.com/sgl-project/sglang-omni/Voxt/internal/omni"
 	"github.com/sgl-project/sglang-omni/Voxt/internal/settings"
 	"github.com/sgl-project/sglang-omni/Voxt/internal/uitext"
 )
@@ -227,7 +228,7 @@ func keepIdle(m settings.Models) time.Duration {
 	if d, auto := m.KeepFor(); !auto {
 		return d
 	}
-	return 0 // automatic: the runtime can shorten the idle time under memory pressure
+	return omni.DefaultIdleTimeout
 }
 
 // keepSetting is the saved choice (goroutine-safe: the runtimes are made

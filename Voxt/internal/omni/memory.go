@@ -5,11 +5,6 @@ import "github.com/sgl-project/sglang-omni/Voxt/internal/macx"
 // readSystemMemory reads the Mac's memory for the log; tests replace it.
 var readSystemMemory = macx.ReadSystemMemory
 
-func underMemoryPressure() bool {
-	m, err := readSystemMemory()
-	return err == nil && (m.Pressure == "warning" || m.Pressure == "critical")
-}
-
 // memoryNote is the Mac's memory as the log says it: a slow or stalled
 // speech model is most often one whose weights were swapped out.
 func memoryNote() string {

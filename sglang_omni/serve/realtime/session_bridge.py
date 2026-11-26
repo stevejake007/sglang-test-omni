@@ -10,7 +10,7 @@ from functools import partial
 
 import numpy as np
 
-from sglang_omni.admission import ContextExhaustedError
+from sglang_omni.admission import ContextExhaustedError, SessionCapacityExhaustedError
 from sglang_omni.client.client import Client
 from sglang_omni.proto.request import OmniRequest
 from sglang_omni.proto.session import (
@@ -128,6 +128,7 @@ def capabilities_of(ports: SessionPorts) -> Capabilities:
         supports_truncate=TRUNCATE in ports.controls,
         supports_cancel=INTERRUPT in ports.controls,
         supports_client_commit=COMMIT in ports.controls,
+        skips_screen_blocks=ports.skips_screen_blocks,
     )
 
 
@@ -369,6 +370,8 @@ class SessionBridge(InteractionAdapter):
         except Exception as exc:
             if ContextExhaustedError.matches(exc):
                 code = ContextExhaustedError.CODE
+            elif SessionCapacityExhaustedError.matches(exc):
+                code = SessionCapacityExhaustedError.CODE
             else:
                 code = failure_code(exc)
             if code == CLOSE_REASON_INTERNAL:

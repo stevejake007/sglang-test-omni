@@ -44,7 +44,8 @@ type Config struct {
 	// StartTimeout bounds a server's start (its model's load); a server
 	// that has not said it is ready by then is killed.
 	StartTimeout time.Duration
-	// IdleTimeout stops an unused server (< 0: never; 0: automatic).
+	// IdleTimeout stops a server no one used for that long (< 0: never;
+	// SetIdleTimeout changes it).
 	IdleTimeout time.Duration
 	// StallTimeout: a Final whose response stream (the server's heartbeat
 	// is every 250 ms) is silent this long has hung its server, which is
@@ -100,10 +101,9 @@ func Locate(exe string) (string, error) {
 // Runtime supervises the servers: one per model, one speech model at a
 // time, and Silero's beside it. Goroutine-safe.
 type Runtime struct {
-	cfg                 Config
-	events              *resident.Queue // Config.OnModel's
-	idle                atomic.Int64    // zero selects automatic unloading
-	underMemoryPressure func() bool
+	cfg    Config
+	events *resident.Queue // Config.OnModel's
+	idle   atomic.Int64    // the idle timeout (Config.IdleTimeout, SetIdleTimeout)
 	// afterFunc runs the idle timers (time.AfterFunc; tests move a
 	// clock of their own) and returns their Stop.
 	afterFunc func(time.Duration, func()) func()
@@ -124,6 +124,9 @@ func NewRuntime(cfg Config) *Runtime {
 	if cfg.StartTimeout <= 0 {
 		cfg.StartTimeout = DefaultStartTimeout
 	}
+	if cfg.IdleTimeout == 0 {
+		cfg.IdleTimeout = DefaultIdleTimeout
+	}
 	if cfg.StallTimeout <= 0 {
 		cfg.StallTimeout = DefaultStallTimeout
 	}
@@ -132,7 +135,6 @@ func NewRuntime(cfg Config) *Runtime {
 	}
 	rt := &Runtime{cfg: cfg, events: resident.NewQueue(cfg.OnModel), servers: map[string]*server{}}
 	rt.idle.Store(int64(cfg.IdleTimeout))
-	rt.underMemoryPressure = underMemoryPressure
 	rt.afterFunc = func(d time.Duration, f func()) func() {
 		t := time.AfterFunc(d, f)
 		return func() { t.Stop() }
@@ -155,19 +157,16 @@ func (rt *Runtime) cacheLimit(spec Spec) bool {
 	return rt.cacheLimitKnown
 }
 
-// IdleTimeout is the configured duration, or the normal automatic duration.
-// A negative duration keeps a server until Close.
-func (rt *Runtime) IdleTimeout() time.Duration {
-	if d := time.Duration(rt.idle.Load()); d != 0 {
-		return d
-	}
-	return DefaultIdleTimeout
-}
+// IdleTimeout is how long an unused server stays (< 0: until Close).
+func (rt *Runtime) IdleTimeout() time.Duration { return time.Duration(rt.idle.Load()) }
 
 // SetIdleTimeout changes how long an unused server stays: d < 0 until
-// Close, 0 automatic. The servers unused now count it from now;
+// Close, 0 DefaultIdleTimeout. The servers unused now count it from now;
 // the ones in use, from the end of their use.
 func (rt *Runtime) SetIdleTimeout(d time.Duration) {
+	if d == 0 {
+		d = DefaultIdleTimeout
+	}
 	if time.Duration(rt.idle.Swap(int64(d))) == d {
 		return
 	}

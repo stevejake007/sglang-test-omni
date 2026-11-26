@@ -11,7 +11,7 @@ import (
 func modelsAdvanced(c *ui.Context, state *modelsAdvancedViewState, actions modelsActions, local *modelsLocalUI) {
 	t := c.Theme()
 	collapsible(c.Key("models-advanced"), i18n.T("Advanced"), &local.modelAdvanced, nil, func() {
-		help := i18n.T("Loaded models start at once but keep using memory. Automatic unloads them after 10 minutes unused, or sooner under memory pressure.")
+		help := i18n.T("Loaded models start at once but keep using memory. Automatic unloads them after 10 minutes unused.")
 		settingRow(c, "models-keep", i18n.T("Keep models loaded"), help, func() {
 			// The label follows the setting and the language, unless a
 			// choice of this select is on its way to the setting.

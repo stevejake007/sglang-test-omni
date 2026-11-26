@@ -29,7 +29,7 @@ func (s *live) finishLive(pcm []byte) {
 		s.finalPass(pcm)
 	}
 	select {
-	case s.out <- done:
+	case s.out <- realtimeMessage{data: done}:
 	default:
 		fallback("the socket's queue is full")
 		return

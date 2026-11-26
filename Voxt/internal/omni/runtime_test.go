@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/sgl-project/sglang-omni/Voxt/internal/asr"
+	"github.com/sgl-project/sglang-omni/Voxt/internal/macx"
 	"github.com/sgl-project/sglang-omni/Voxt/internal/omni/omnitest"
 	"github.com/sgl-project/sglang-omni/Voxt/internal/resident"
 )
@@ -475,42 +476,39 @@ func TestIdleUnload(t *testing.T) {
 
 }
 
-func TestAutomaticIdleUnloadUnderMemoryPressure(t *testing.T) {
-	const grace = 30 * time.Second
-	for _, tc := range []struct {
-		name     string
-		pressure bool
-		keep     time.Duration
-		unloads  bool
-	}{
-		{name: "automatic under pressure", pressure: true, unloads: true},
-		{name: "automatic with memory available"},
-		{name: "explicit duration", pressure: true, keep: 5 * time.Minute},
-		{name: "until quit", pressure: true, keep: -1},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := newFake(t, omnitest.Opts{}, func(c *Config) { c.IdleTimeout = tc.keep })
-			f.rt.underMemoryPressure = func() bool { return tc.pressure }
-			clock := new(fakeClock).install(f.rt)
-			a := f.asr(t, ASRAccurate)
-			l, err := f.rt.acquire(context.Background(), a.spec, a.dir, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			clock.advance(grace)
-			if len(f.rt.Running()) != 1 {
-				t.Fatal("unloaded a model while it was leased")
-			}
-			l.release()
-			clock.advance(grace - time.Millisecond)
-			if len(f.rt.Running()) != 1 {
-				t.Fatal("unloaded before the idle grace period")
-			}
-			clock.advance(time.Millisecond)
-			if unloaded := len(f.rt.Running()) == 0; unloaded != tc.unloads {
-				t.Fatalf("unloaded after the idle grace period = %t, want %t", unloaded, tc.unloads)
-			}
-		})
+// The lease taken and released by Warm must outlive a short pause, even
+// on a Mac reporting memory pressure. A cancelled timer that has already
+// fired must not unload the process after the next use has ended.
+func TestAutomaticIdleReuse(t *testing.T) {
+	original := readSystemMemory
+	readSystemMemory = func() (macx.SystemMemory, error) { return macx.SystemMemory{Pressure: "warning"}, nil }
+	t.Cleanup(func() { readSystemMemory = original })
+
+	f := newFake(t, omnitest.Opts{}, nil)
+	clock := new(fakeClock).install(f.rt)
+	a := f.asr(t, ASRAccurate)
+	use := func() {
+		t.Helper()
+		release, err := a.Hold(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		release()
+	}
+	use()
+	stale := clock.timers[len(clock.timers)-1]
+	clock.advance(50 * time.Second)
+	use()
+	if n := len(f.records("launch")); n != 1 {
+		t.Fatalf("model launched %d times across a 50-second pause", n)
+	}
+	stale.fn()
+	if len(f.rt.Running()) != 1 {
+		t.Fatal("a superseded timer unloaded the reused model")
+	}
+	clock.advance(DefaultIdleTimeout)
+	if len(f.rt.Running()) != 0 {
+		t.Fatal("the current idle timer did not unload the model")
 	}
 }
 
@@ -674,7 +672,7 @@ func TestUnload(t *testing.T) {
 	}
 	f.rt.Unload(ASRFast)
 	f.rt.Unload("nothing")
-	if _, _, err := a.final(ctx, l, tone(time.Second, 0.3), "", bias{}); err != nil {
+	if _, _, err := a.final(ctx, l, tone(time.Second, 0.3), "", bias{}, prior{}); err != nil {
 		t.Fatalf("the use in progress failed: %v", err)
 	}
 	l.release()
