@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/sgl-project/sglang-omni/Voxt/internal/asr"
+	"github.com/sgl-project/sglang-omni/Voxt/internal/macx"
 	"github.com/sgl-project/sglang-omni/Voxt/internal/omni/omnitest"
 	"github.com/sgl-project/sglang-omni/Voxt/internal/resident"
 )
@@ -473,6 +474,42 @@ func TestIdleUnload(t *testing.T) {
 		t.Errorf("%d launches after an unload", n)
 	}
 
+}
+
+// The lease taken and released by Warm must outlive a short pause, even
+// on a Mac reporting memory pressure. A cancelled timer that has already
+// fired must not unload the process after the next use has ended.
+func TestAutomaticIdleReuse(t *testing.T) {
+	original := readSystemMemory
+	readSystemMemory = func() (macx.SystemMemory, error) { return macx.SystemMemory{Pressure: "warning"}, nil }
+	t.Cleanup(func() { readSystemMemory = original })
+
+	f := newFake(t, omnitest.Opts{}, nil)
+	clock := new(fakeClock).install(f.rt)
+	a := f.asr(t, ASRAccurate)
+	use := func() {
+		t.Helper()
+		release, err := a.Hold(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		release()
+	}
+	use()
+	stale := clock.timers[len(clock.timers)-1]
+	clock.advance(50 * time.Second)
+	use()
+	if n := len(f.records("launch")); n != 1 {
+		t.Fatalf("model launched %d times across a 50-second pause", n)
+	}
+	stale.fn()
+	if len(f.rt.Running()) != 1 {
+		t.Fatal("a superseded timer unloaded the reused model")
+	}
+	clock.advance(DefaultIdleTimeout)
+	if len(f.rt.Running()) != 0 {
+		t.Fatal("the current idle timer did not unload the model")
+	}
 }
 
 // TestSetIdleTimeout: a change applies to the running servers at once:

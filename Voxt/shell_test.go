@@ -85,6 +85,9 @@ func TestSidebarAndShortcuts(t *testing.T) {
 	// Every page of the sidebar shows (no card under the list: 520 tall,
 	// the list then scrolls).
 	frames(tt)
+	if a.modelViewKey != "" {
+		t.Fatal("the home page prepared the model settings with all model dialogs closed")
+	}
 	a.clearNotices()
 	for _, p := range pages {
 		// The last rows can sit under the fade at the list's foot: scroll

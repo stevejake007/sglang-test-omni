@@ -22,14 +22,15 @@ type server struct {
 	// none; cleared once the server refused it (startProcess).
 	draft string
 
-	mu      sync.Mutex
-	proc    *process // the ready process, nil when none runs
-	spawned *process // the process starting, until it is ready or failed
-	start   *startOp // the start in progress, shared by its waiters
-	leases  int      // uses holding proc
-	idle    func()   // stops the idle timer
-	retired bool
-	stopped chan struct{} // closed once retired and no process is left
+	mu             sync.Mutex
+	proc           *process // the ready process, nil when none runs
+	spawned        *process // the process starting, until it is ready or failed
+	start          *startOp // the start in progress, shared by its waiters
+	leases         int      // uses holding proc
+	idle           func()   // stops the idle timer
+	idleGeneration uint64   // a cancelled callback may already be waiting on mu
+	retired        bool
+	stopped        chan struct{} // closed once retired and no process is left
 	// loaded is the process that said it is ready, until it exited
 	// (Config.OnModel's view: tracker).
 	loaded  *process
@@ -238,9 +239,11 @@ func (s *server) armIdle(p *process) {
 	if d < 0 {
 		return
 	}
+	s.idleGeneration++
+	generation := s.idleGeneration
 	s.idle = s.rt.afterFunc(d, func() {
 		s.mu.Lock()
-		if s.proc != p || s.leases > 0 {
+		if s.idle == nil || s.idleGeneration != generation || s.proc != p || s.leases > 0 {
 			s.mu.Unlock()
 			return
 		}

@@ -2,7 +2,6 @@ package omni
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/url"
 	"slices"
@@ -37,7 +36,7 @@ type live struct {
 	// session is the realtime session's id ("" from an older server): the
 	// Final reuses the audio its server has encoded.
 	session string
-	out     chan []byte // messages for the socket's writer
+	out     chan realtimeMessage
 
 	cancelBatchPreview context.CancelFunc
 
@@ -142,7 +141,7 @@ func openLive(ctx context.Context, a *ASR, l *lease, req asr.StreamRequest) (*li
 	sctx, cancel := context.WithCancel(ctx)
 	s := &live{a: a, l: l, req: req, ctx: sctx, cancel: cancel, conn: conn, session: sessionID,
 		language: hint, bias: bias,
-		out: make(chan []byte, 1024), preview: conn != nil, events: make(chan asr.Event, eventBuffer),
+		out: make(chan realtimeMessage, 1024), preview: conn != nil, events: make(chan asr.Event, eventBuffer),
 		completed: make(chan string, 1), readDone: make(chan struct{}), writeDone: make(chan struct{}),
 		idle: make(chan struct{}, 1), lastRecv: time.Now()}
 	if conn != nil {
@@ -255,7 +254,7 @@ func (s *live) Send(pcm []byte) error {
 		s.stopPreview("the preview fell behind the microphone")
 		return nil
 	}
-	msg, _ := json.Marshal(map[string]string{"type": "input_audio_buffer.append", "audio": base64.StdEncoding.EncodeToString(pcm)})
+	msg := audioAppend(pcm)
 	select {
 	case s.out <- msg:
 		s.queued += len(pcm)
@@ -286,8 +285,7 @@ func (s *live) write() {
 			if s.writeGate != nil {
 				<-s.writeGate
 			}
-			n := audioBytes(msg)
-			if err := s.conn.Write(s.ctx, websocket.MessageText, msg); err != nil {
+			if err := s.conn.Write(s.ctx, websocket.MessageText, msg.data); err != nil {
 				s.mu.Lock()
 				if !s.finished {
 					s.stopPreview("writing: " + err.Error())
@@ -296,8 +294,8 @@ func (s *live) write() {
 				return
 			}
 			s.mu.Lock()
-			s.queued -= n
-			s.previewed += n
+			s.queued -= msg.pcmBytes
+			s.previewed += msg.pcmBytes
 			if s.queued == 0 {
 				select {
 				case s.idle <- struct{}{}:
@@ -311,20 +309,21 @@ func (s *live) write() {
 	}
 }
 
-// audioBytes is the PCM an append message carries. DecodedLen counts
-// the base64 padding as data, so it goes.
-func audioBytes(msg []byte) int {
-	var m struct {
-		Audio string `json:"audio"`
-	}
-	if json.Unmarshal(msg, &m) != nil {
-		return 0
-	}
-	pad := 0
-	for i := len(m.Audio) - 1; i >= 0 && m.Audio[i] == '='; i-- {
-		pad++
-	}
-	return base64.StdEncoding.DecodedLen(len(m.Audio)) - pad
+// realtimeMessage carries the PCM length through the writer. Control messages
+// count as zero. A successful write transfers this many bytes from queued to
+// previewed without having to parse the JSON we just encoded.
+type realtimeMessage struct {
+	data     []byte
+	pcmBytes int
+}
+
+func audioAppend(pcm []byte) realtimeMessage {
+	// encoding/json encodes a byte slice directly as a base64 string.
+	data, _ := json.Marshal(struct {
+		Audio []byte `json:"audio"`
+		Type  string `json:"type"`
+	}{Audio: pcm, Type: "input_audio_buffer.append"})
+	return realtimeMessage{data: data, pcmBytes: len(pcm)}
 }
 
 // read turns the socket's segments into partials, and passes the whole

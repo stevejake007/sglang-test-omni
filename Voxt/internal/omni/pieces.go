@@ -118,7 +118,7 @@ func (s *live) startFinalAt(sample int) {
 	}
 	msg, _ := json.Marshal(map[string]any{"type": "input_audio_buffer.final_start", "start_sample": sample})
 	select {
-	case s.out <- msg:
+	case s.out <- realtimeMessage{data: msg}:
 	default:
 	}
 }

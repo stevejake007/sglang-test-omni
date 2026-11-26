@@ -1,8 +1,8 @@
 package omni
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -76,14 +76,40 @@ func watchLog(c *Config, sub string) func(*testing.T) {
 	}
 }
 
-// TestAudioBytes: the PCM an append message carries, for base64 lengths
-// with 0, 1 and 2 padding bytes (DecodedLen counts the padding as data).
-func TestAudioBytes(t *testing.T) {
+func TestAudioAppend(t *testing.T) {
 	for _, n := range []int{0, 3, 4, 5, 6, 3198, 3199, 3200} {
-		msg, _ := json.Marshal(map[string]string{"type": "input_audio_buffer.append", "audio": base64.StdEncoding.EncodeToString(make([]byte, n))})
-		if got := audioBytes(msg); got != n {
-			t.Errorf("%d bytes of PCM: got %d", n, got)
+		pcm := bytes.Repeat([]byte{0xfb}, n)
+		msg := audioAppend(pcm)
+		var wire struct {
+			Type  string
+			Audio []byte
 		}
+		if err := json.Unmarshal(msg.data, &wire); err != nil {
+			t.Fatal(err)
+		}
+		if wire.Type != "input_audio_buffer.append" || !bytes.Equal(wire.Audio, pcm) || msg.pcmBytes != n {
+			t.Fatalf("%d PCM bytes: type %q, decoded %d, queued %d", n, wire.Type, len(wire.Audio), msg.pcmBytes)
+		}
+	}
+}
+
+// BenchmarkRealtimeAudioFrame measures sending and accounting for 100 ms
+// of microphone audio, excluding the socket and speech model.
+func BenchmarkRealtimeAudioFrame(b *testing.B) {
+	pcm := make([]byte, 3200) // 16 kHz, mono, 16-bit
+	s := &live{preview: true, out: make(chan realtimeMessage, 1)}
+	b.SetBytes(int64(len(pcm)))
+	b.ReportAllocs()
+	for b.Loop() {
+		s.audio = s.audio[:0]
+		if err := s.Send(pcm); err != nil {
+			b.Fatal(err)
+		}
+		msg := <-s.out
+		s.queued -= msg.pcmBytes
+	}
+	if s.queued != 0 {
+		b.Fatalf("%d bytes left in the queue", s.queued)
 	}
 }
 
